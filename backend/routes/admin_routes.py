@@ -156,6 +156,37 @@ def get_chapters(subject_id):
         'chapters': [chapter.to_dict() for chapter in chapters]
     })
 
+# Add this route to your admin_routes.py file in the CHAPTERS CRUD section
+
+@admin_bp.route('/chapters', methods=['GET'])
+@admin_required
+def get_all_chapters():
+    """Get all chapters (with optional subject filter)"""
+    subject_id = request.args.get('subject_id')
+    
+    if subject_id:
+        # Filter by subject if provided
+        chapters = Chapter.query.filter_by(subject_id=subject_id).all()
+        subject = Subject.query.get_or_404(subject_id)
+        return jsonify({
+            'subject': subject.to_dict(),
+            'chapters': [chapter.to_dict() for chapter in chapters]
+        })
+    else:
+        # Get all chapters with their subject information
+        chapters = Chapter.query.all()
+        chapters_with_subject = []
+        
+        for chapter in chapters:
+            chapter_dict = chapter.to_dict()
+            if chapter.subject:
+                chapter_dict['subject_name'] = chapter.subject.name
+            chapters_with_subject.append(chapter_dict)
+        
+        return jsonify({
+            'chapters': chapters_with_subject
+        })
+
 @admin_bp.route('/chapters', methods=['POST'])
 @admin_required
 def create_chapter():
@@ -183,6 +214,21 @@ def create_chapter():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+
+@admin_bp.route('/chapters/<int:chapter_id>', methods=['GET'])
+@admin_required
+def get_single_chapter(chapter_id):
+    """Get a specific chapter with its subject information"""
+    chapter = Chapter.query.get_or_404(chapter_id)
+    chapter_dict = chapter.to_dict()
+    
+    if chapter.subject:
+        chapter_dict['subject_name'] = chapter.subject.name
+    
+    return jsonify({
+        'chapter': chapter_dict
+    })
 
 @admin_bp.route('/chapters/<int:chapter_id>', methods=['PUT'])
 @admin_required
@@ -306,6 +352,37 @@ def delete_quiz(quiz_id):
 
 # ============= QUESTIONS CRUD =============
 
+@admin_bp.route('/chapters/<int:chapter_id>/questions', methods=['GET'])
+@admin_required
+def get_questions_by_chapter(chapter_id):
+    """Get all questions for all quizzes in a specific chapter"""
+    chapter = Chapter.query.get_or_404(chapter_id)
+    
+    # Get all quizzes for this chapter
+    quizzes = Quiz.query.filter_by(chapter_id=chapter_id).all()
+    
+    # Get all questions for all quizzes in this chapter
+    quiz_ids = [quiz.quiz_id for quiz in quizzes]
+    questions = Question.query.filter(Question.quiz_id.in_(quiz_ids)).all() if quiz_ids else []
+    
+    # Add quiz and chapter info to each question
+    questions_with_context = []
+    for question in questions:
+        question_dict = question.to_dict()
+        # Find the quiz for this question
+        quiz = next((q for q in quizzes if q.quiz_id == question.quiz_id), None)
+        if quiz:
+            question_dict['quiz_title'] = quiz.title
+            question_dict['chapter_id'] = chapter_id
+            question_dict['chapter_name'] = chapter.name
+        questions_with_context.append(question_dict)
+    
+    return jsonify({
+        'chapter': chapter.to_dict(),
+        'questions': questions_with_context,
+        'quizzes': [quiz.to_dict() for quiz in quizzes]  # Include available quizzes
+    })
+
 @admin_bp.route('/quizzes/<int:quiz_id>/questions', methods=['GET'])
 @admin_required
 def get_questions(quiz_id):
@@ -324,6 +401,34 @@ def create_question():
     """Create a new question"""
     data = request.get_json()
     
+    # Handle both direct quiz_id and chapter_id with auto-quiz creation
+    if data.get('chapter_id') and not data.get('quiz_id'):
+        # Auto-create a default quiz for this chapter if none exists
+        chapter = Chapter.query.get_or_404(data['chapter_id'])
+        
+        # Check if there's already a default quiz for this chapter
+        default_quiz = Quiz.query.filter_by(
+            chapter_id=data['chapter_id'], 
+            title=f"Default Quiz - {chapter.name}"
+        ).first()
+        
+        if not default_quiz:
+            # Create a default quiz
+            from datetime import datetime, timedelta
+            default_quiz = Quiz(
+                title=f"Default Quiz - {chapter.name}",
+                chapter_id=data['chapter_id'],
+                date_of_quiz=datetime.utcnow() + timedelta(days=7),  # Default to next week
+                time_duration=30,  # Default 30 minutes
+                remarks="Auto-created quiz for questions",
+                is_active=True
+            )
+            db.session.add(default_quiz)
+            db.session.flush()  # Get the quiz ID
+        
+        data['quiz_id'] = default_quiz.quiz_id
+    
+    # Now proceed with standard validation
     required_fields = ['quiz_id', 'question_statement', 'option1', 'option2', 'correct_option']
     for field in required_fields:
         if not data.get(field):
@@ -333,6 +438,10 @@ def create_question():
     quiz = Quiz.query.get(data['quiz_id'])
     if not quiz:
         return jsonify({'error': 'Quiz not found'}), 404
+    
+    # Validate correct_option
+    if data['correct_option'] not in [1, 2, 3, 4]:
+        return jsonify({'error': 'correct_option must be 1, 2, 3, or 4'}), 400
     
     question = Question(
         quiz_id=data['quiz_id'],
@@ -347,10 +456,39 @@ def create_question():
     try:
         db.session.add(question)
         db.session.commit()
-        return jsonify({'message': 'Question created successfully', 'question': question.to_dict()}), 201
+        
+        # Return question with additional context
+        question_dict = question.to_dict()
+        question_dict['quiz_title'] = quiz.title
+        question_dict['chapter_id'] = quiz.chapter_id
+        question_dict['chapter_name'] = quiz.chapter.name if quiz.chapter else None
+        
+        return jsonify({
+            'message': 'Question created successfully', 
+            'question': question_dict
+        }), 201
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/questions/<int:question_id>', methods=['GET'])
+@admin_required
+def get_question(question_id):
+    """Get a specific question with context"""
+    question = Question.query.get_or_404(question_id)
+    question_dict = question.to_dict()
+    
+    # Add context information
+    if question.quiz:
+        question_dict['quiz_title'] = question.quiz.title
+        question_dict['chapter_id'] = question.quiz.chapter_id
+        if question.quiz.chapter:
+            question_dict['chapter_name'] = question.quiz.chapter.name
+            question_dict['subject_id'] = question.quiz.chapter.subject_id
+            if question.quiz.chapter.subject:
+                question_dict['subject_name'] = question.quiz.chapter.subject.name
+    
+    return jsonify({'question': question_dict})
 
 @admin_bp.route('/questions/<int:question_id>', methods=['PUT'])
 @admin_required
@@ -371,10 +509,24 @@ def update_question(question_id):
         if 'option4' in data:
             question.option4 = data['option4']
         if data.get('correct_option'):
+            if data['correct_option'] not in [1, 2, 3, 4]:
+                return jsonify({'error': 'correct_option must be 1, 2, 3, or 4'}), 400
             question.correct_option = data['correct_option']
         
         db.session.commit()
-        return jsonify({'message': 'Question updated successfully', 'question': question.to_dict()})
+        
+        # Return updated question with context
+        question_dict = question.to_dict()
+        if question.quiz:
+            question_dict['quiz_title'] = question.quiz.title
+            question_dict['chapter_id'] = question.quiz.chapter_id
+            if question.quiz.chapter:
+                question_dict['chapter_name'] = question.quiz.chapter.name
+        
+        return jsonify({
+            'message': 'Question updated successfully', 
+            'question': question_dict
+        })
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
@@ -392,6 +544,58 @@ def delete_question(question_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+# ============= HELPER ENDPOINTS =============
+
+@admin_bp.route('/chapters/<int:chapter_id>/available-quizzes', methods=['GET'])
+@admin_required
+def get_available_quizzes(chapter_id):
+    """Get all quizzes available for a chapter"""
+    chapter = Chapter.query.get_or_404(chapter_id)
+    quizzes = Quiz.query.filter_by(chapter_id=chapter_id).all()
+    
+    return jsonify({
+        'chapter': chapter.to_dict(),
+        'quizzes': [quiz.to_dict() for quiz in quizzes]
+    })
+
+@admin_bp.route('/subjects/<int:subject_id>/all-questions', methods=['GET'])
+@admin_required
+def get_all_questions_by_subject(subject_id):
+    """Get all questions for a subject (across all chapters and quizzes)"""
+    subject = Subject.query.get_or_404(subject_id)
+    
+    # Get all chapters for this subject
+    chapters = Chapter.query.filter_by(subject_id=subject_id).all()
+    chapter_ids = [chapter.chapter_id for chapter in chapters]
+    
+    # Get all quizzes for these chapters
+    quizzes = Quiz.query.filter(Quiz.chapter_id.in_(chapter_ids)).all() if chapter_ids else []
+    quiz_ids = [quiz.quiz_id for quiz in quizzes]
+    
+    # Get all questions for these quizzes
+    questions = Question.query.filter(Question.quiz_id.in_(quiz_ids)).all() if quiz_ids else []
+    
+    # Add context to questions
+    questions_with_context = []
+    for question in questions:
+        question_dict = question.to_dict()
+        quiz = next((q for q in quizzes if q.quiz_id == question.quiz_id), None)
+        if quiz:
+            chapter = next((c for c in chapters if c.chapter_id == quiz.chapter_id), None)
+            if chapter:
+                question_dict['quiz_title'] = quiz.title
+                question_dict['chapter_id'] = chapter.chapter_id
+                question_dict['chapter_name'] = chapter.name
+                question_dict['subject_id'] = subject_id
+                question_dict['subject_name'] = subject.name
+        questions_with_context.append(question_dict)
+    
+    return jsonify({
+        'subject': subject.to_dict(),
+        'questions': questions_with_context,
+        'total_questions': len(questions_with_context)
+    })
 
 # ============= USERS MANAGEMENT =============
 

@@ -1,7 +1,9 @@
 import Vue from 'vue';
 import VueRouter from 'vue-router';
 
-import SubjectManager from '../views/SubjectManager.vue'
+import SubjectManager from '../components/Admin/SubjectManager.vue';
+ 
+
 import Login from '../views/Login.vue'
 import Register from '../views/Register.vue'
 import AdminDashboard from '../views/AdminDashboard.vue'
@@ -10,6 +12,7 @@ import SubjectQuizzes from '../views/SubjectQuizzes.vue'
 import QuizTaking from '../views/QuizTaking.vue'
 import QuizSummary from '../views/QuizSummary.vue'
 import ScoresPage from '../views/ScoresPage.vue'
+import QuizList from '@/components/Admin/QuizList.vue'
 
 Vue.use(VueRouter);
 
