@@ -31,7 +31,7 @@ export default {
   },
   async created() {
     const token = localStorage.getItem('access_token');
-    const response = await fetch('http://127.0.0.1:5000/admin/users', {
+            const response = await fetch('/api/admin/users', {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     this.users = await response.json();

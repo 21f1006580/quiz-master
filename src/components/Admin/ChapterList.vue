@@ -31,14 +31,14 @@ export default {
   methods: {
     async loadChapters() {
       const token = localStorage.getItem('access_token');
-      const res = await fetch('http://127.0.0.1:5000/admin/chapters', {
+      const res = await fetch('/api/admin/chapters', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       this.chapters = await res.json();
     },
     async createChapter() {
       const token = localStorage.getItem('access_token');
-      await fetch('http://127.0.0.1:5000/admin/chapters', {
+              await fetch('/api/admin/chapters', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

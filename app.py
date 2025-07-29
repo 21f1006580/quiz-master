@@ -31,6 +31,15 @@ def create_app():
     # Initialize JWT
     jwt = JWTManager(app)
     
+    # Initialize CORS
+    CORS(app, supports_credentials=True, resources={
+        r"/api/*": {
+            "origins": ["http://localhost:8080", "http://127.0.0.1:8080"],
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization"]
+        }
+    })
+    
     # Initialize database with app
     db.init_app(app)
     
@@ -50,6 +59,5 @@ def create_app():
  
 if __name__ == '__main__':
     app = create_app()
-    CORS(app, supports_credentials=True)
     celery = app.celery 
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=5000)

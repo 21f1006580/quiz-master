@@ -16,9 +16,9 @@ def admin_required(f):
     @wraps(f)
     @jwt_required()
     def decorated_function(*args, **kwargs):
-        current_user_id = get_jwt_identity()
-        user = User.query.get(current_user_id)
-        if not user or user.role != 'admin':
+        current_user_name = get_jwt_identity()
+        user = User.query.filter_by(user_name=current_user_name).first()
+        if not user or not user.is_admin:
             return jsonify({'error': 'Admin access required'}), 403
         return f(*args, **kwargs)
     return decorated_function
@@ -252,11 +252,11 @@ def create_quiz():
         quiz_date = datetime.fromisoformat(data['date_of_quiz'].replace('Z', '+00:00'))
         
         quiz = Quiz(
-            quiz_name=data['quiz_name'],
+            title=data['title'],
             chapter_id=data['chapter_id'],
-            quiz_date=quiz_date,
-            duration_minutes=data['duration_minutes'],
-            quiz_remarks=data.get('quiz_remarks', ''),
+            date_of_quiz=quiz_date,
+            time_duration=data['time_duration'],
+            remarks=data.get('remarks', ''),
             is_active=True      
         )
         

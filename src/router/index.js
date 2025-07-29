@@ -9,10 +9,12 @@ import AdminDashboard from '../views/AdminDashboard.vue';
 Vue.use(VueRouter);
 
 const routes = [
+    {path : '/', redirect: '/login'},
     {path : '/login', component: Login},
     {path : '/register', component: Register},
     { path: '/admin/subjects', component: SubjectManager },
-    {path: '/admin', component: AdminDashboard }
+    {path: '/admin', component: AdminDashboard },
+    {path: '/dashboard', component: Login} // Temporary - will be replaced with actual dashboard
   // ... other routes
 ]
 

@@ -58,19 +58,22 @@ class Subject(db.Model):
     __tablename__ = 'subjects'
 
     subject_id = db.Column(db.Integer, primary_key=True)
-    subject_name = db.Column(db.String(100), nullable=False, unique=True)
-    subject_description = db.Column(db.Text, nullable=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    description = db.Column(db.Text, nullable=True)
+    is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     chapters = db.relationship('Chapter', backref='subject', lazy=True, cascade="all, delete-orphan")
 
     def to_dict(self):
         return {
             'id': self.subject_id,
-            'name': self.subject_name,
-            'description': self.subject_description,
+            'name': self.name,
+            'description': self.description,
+            'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None,
-          
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
     
     def __repr__(self):
@@ -81,30 +84,55 @@ class Chapter(db.Model):
     __tablename__ = 'chapters'
 
     chapter_id = db.Column(db.Integer, primary_key=True)
-    chapter_name = db.Column(db.String(100), nullable=False)
-    chapter_description = db.Column(db.Text, nullable=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, nullable=True)
     subject_id = db.Column(db.Integer, db.ForeignKey('subjects.subject_id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     quizzes = db.relationship('Quiz', backref='chapter', lazy=True, cascade="all, delete-orphan")
 
-    # Combination of chapter_name and subject_id must be unique
-    __table_args__ = (db.UniqueConstraint('chapter_name', 'subject_id', name='unique_chapter_name_per_subject'),)
+    # Combination of name and subject_id must be unique
+    __table_args__ = (db.UniqueConstraint('name', 'subject_id', name='unique_chapter_name_per_subject'),)
+
+    def to_dict(self):
+        return {
+            'id': self.chapter_id,
+            'name': self.name,
+            'description': self.description,
+            'subject_id': self.subject_id,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
 
 class Quiz(db.Model):
     __tablename__ = 'quizzes'
 
     quiz_id = db.Column(db.Integer, primary_key=True)
-    quiz_name = db.Column(db.String(100), nullable=False)
+    title = db.Column(db.String(100), nullable=False)
     chapter_id = db.Column(db.Integer, db.ForeignKey('chapters.chapter_id'), nullable=False)
-    quiz_date = db.Column(db.DateTime, nullable=False)
-    duration_minutes = db.Column(db.Integer, nullable=False)  # Duration in minutes
-    quiz_remarks = db.Column(db.Text, nullable=True)
+    date_of_quiz = db.Column(db.DateTime, nullable=False)
+    time_duration = db.Column(db.Integer, nullable=False)  # Duration in minutes
+    remarks = db.Column(db.Text, nullable=True)
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     scores = db.relationship('Score', backref='quiz', lazy=True, cascade="all, delete-orphan")
     questions = db.relationship('Question', backref='quiz', lazy=True, cascade="all, delete-orphan")
+
+    def to_dict(self):
+        return {
+            'id': self.quiz_id,
+            'title': self.title,
+            'chapter_id': self.chapter_id,
+            'date_of_quiz': self.date_of_quiz.isoformat() if self.date_of_quiz else None,
+            'time_duration': self.time_duration,
+            'remarks': self.remarks,
+            'is_active': self.is_active,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
 
 
 
@@ -114,11 +142,27 @@ class Question(db.Model):
     question_id = db.Column(db.Integer, primary_key=True)
     quiz_id = db.Column(db.Integer, db.ForeignKey('quizzes.quiz_id'), nullable=False)
     question_statement = db.Column(db.Text, nullable=False)
-    option_1 = db.Column(db.Text, nullable=False)
-    option_2 = db.Column(db.Text, nullable=False)
-    option_3 = db.Column(db.Text, nullable=False)
-    option_4 = db.Column(db.Text, nullable=False)
+    option1 = db.Column(db.Text, nullable=False)
+    option2 = db.Column(db.Text, nullable=False)
+    option3 = db.Column(db.Text, nullable=True)
+    option4 = db.Column(db.Text, nullable=True)
     correct_option = db.Column(db.Integer, nullable=False)  # 1, 2, 3, or 4
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.question_id,
+            'quiz_id': self.quiz_id,
+            'question_statement': self.question_statement,
+            'option1': self.option1,
+            'option2': self.option2,
+            'option3': self.option3,
+            'option4': self.option4,
+            'correct_option': self.correct_option,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+        }
 
 class Score(db.Model):
     __tablename__ = 'scores'

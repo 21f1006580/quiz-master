@@ -76,3 +76,6 @@ env/
 # OS files
 .DS_Store
 Thumbs.db
+
+nodemodules/
+.gitignore

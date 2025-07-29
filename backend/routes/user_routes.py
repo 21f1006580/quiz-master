@@ -83,8 +83,8 @@ def submit_quiz():
         return jsonify({'error': 'Quiz not found'}), 404
     
     now = datetime.utcnow()
-    quiz_start = quiz.quiz_date
-    quiz_end = quiz_start + timedelta(minutes=quiz.duration_minutes)
+    quiz_start = quiz.date_of_quiz
+    quiz_end = quiz_start + timedelta(minutes=quiz.time_duration)
 
     if now < quiz_start:
         return jsonify({'error': 'Quiz has not started yet'}), 403

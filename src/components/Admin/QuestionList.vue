@@ -43,14 +43,14 @@ export default {
   methods: {
     async loadQuestions() {
       const token = localStorage.getItem('access_token');
-      const res = await fetch('http://127.0.0.1:5000/admin/questions', {
+      const res = await fetch('/api/admin/questions', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       this.questions = await res.json();
     },
     async createQuestion() {
       const token = localStorage.getItem('access_token');
-      await fetch('http://127.0.0.1:5000/admin/questions', {
+              await fetch('/api/admin/questions', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -71,7 +71,7 @@ export default {
     },
     async deleteQuestion(id) {
       const token = localStorage.getItem('access_token');
-      await fetch(`http://127.0.0.1:5000/admin/questions/${id}`, {
+              await fetch(`/api/admin/questions/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });

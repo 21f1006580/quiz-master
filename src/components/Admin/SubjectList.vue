@@ -30,14 +30,14 @@ export default {
   methods: {
     async loadSubjects() {
       const token = localStorage.getItem('access_token');
-      const res = await fetch('http://127.0.0.1:5000/admin/subjects', {
+      const res = await fetch('/api/admin/subjects', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       this.subjects = await res.json();
     },
     async createSubject() {
       const token = localStorage.getItem('access_token');
-      await fetch('http://127.0.0.1:5000/admin/subjects', {
+              await fetch('/api/admin/subjects', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -50,7 +50,7 @@ export default {
     },
     async deleteSubject(id) {
       const token = localStorage.getItem('access_token');
-      await fetch(`http://127.0.0.1:5000/admin/subjects/${id}`, {
+              await fetch(`/api/admin/subjects/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });

@@ -64,7 +64,7 @@ export default {
 
       if (this.validationErrors.length === 0) {
         try {
-          const response = await fetch('http://127.0.0.1:5000/api/auth/login', {
+          const response = await fetch('/api/auth/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -78,17 +78,15 @@ export default {
             const data = await response.json()
             localStorage.setItem('access_token', data.access_token)
 
-            const roles = data.user.role || data.user.roles || []
-            localStorage.setItem('role', JSON.stringify(roles))
+            // Store user info
+            localStorage.setItem('user', JSON.stringify(data.user))
+            localStorage.setItem('access_token', data.access_token)
 
-            if (roles.includes('sponsor')) {
-              this.$router.push('/sponsor/dashboard')
-            } else if (roles.includes('influencer')) {
-              this.$router.push('/influencer/dashboard')
-            } else if (roles.includes('admin')) {
-              this.$router.push('/admin/overview')
+            // Check if user is admin
+            if (data.user.is_admin) {
+              this.$router.push('/admin')
             } else {
-              this.$router.push('/explore')
+              this.$router.push('/dashboard')
             }
           } else {
             const errorData = await response.json()

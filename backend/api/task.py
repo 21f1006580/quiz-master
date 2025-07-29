@@ -12,7 +12,7 @@ def lock_expired_quizzes():
         active_quizzes = Quiz.query.filter_by(is_active=True).all()
 
         for quiz in active_quizzes:
-            quiz_end = quiz.quiz_date + timedelta(minutes=quiz.duration_minutes)
+            quiz_end = quiz.date_of_quiz + timedelta(minutes=quiz.time_duration)
             if now > quiz_end:
                 quiz.is_active = False
 

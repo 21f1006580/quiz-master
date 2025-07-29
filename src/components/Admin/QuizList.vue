@@ -32,14 +32,14 @@ export default {
   methods: {
     async loadQuizzes() {
       const token = localStorage.getItem('access_token');
-      const res = await fetch('http://127.0.0.1:5000/admin/quizzes', {
+      const res = await fetch('/api/admin/quizzes', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       this.quizzes = await res.json();
     },
     async createQuiz() {
       const token = localStorage.getItem('access_token');
-      await fetch('http://127.0.0.1:5000/admin/quizzes', {
+              await fetch('/api/admin/quizzes', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -52,7 +52,7 @@ export default {
     },
     async deleteQuiz(id) {
       const token = localStorage.getItem('access_token');
-      await fetch(`http://127.0.0.1:5000/admin/quizzes/${id}`, {
+              await fetch(`/api/admin/quizzes/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
