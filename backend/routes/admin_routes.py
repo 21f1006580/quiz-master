@@ -394,41 +394,15 @@ def get_questions(quiz_id):
         'quiz': quiz.to_dict(),
         'questions': [question.to_dict() for question in questions]
     })
+# Updated Questions API - Remove auto-quiz creation, enforce proper quiz selection
 
 @admin_bp.route('/questions', methods=['POST'])
 @admin_required
 def create_question():
-    """Create a new question"""
+    """Create a new question - requires explicit quiz_id"""
     data = request.get_json()
     
-    # Handle both direct quiz_id and chapter_id with auto-quiz creation
-    if data.get('chapter_id') and not data.get('quiz_id'):
-        # Auto-create a default quiz for this chapter if none exists
-        chapter = Chapter.query.get_or_404(data['chapter_id'])
-        
-        # Check if there's already a default quiz for this chapter
-        default_quiz = Quiz.query.filter_by(
-            chapter_id=data['chapter_id'], 
-            title=f"Default Quiz - {chapter.name}"
-        ).first()
-        
-        if not default_quiz:
-            # Create a default quiz
-            from datetime import datetime, timedelta
-            default_quiz = Quiz(
-                title=f"Default Quiz - {chapter.name}",
-                chapter_id=data['chapter_id'],
-                date_of_quiz=datetime.utcnow() + timedelta(days=7),  # Default to next week
-                time_duration=30,  # Default 30 minutes
-                remarks="Auto-created quiz for questions",
-                is_active=True
-            )
-            db.session.add(default_quiz)
-            db.session.flush()  # Get the quiz ID
-        
-        data['quiz_id'] = default_quiz.quiz_id
-    
-    # Now proceed with standard validation
+    # Strict validation - quiz_id is mandatory
     required_fields = ['quiz_id', 'question_statement', 'option1', 'option2', 'correct_option']
     for field in required_fields:
         if not data.get(field):
@@ -606,8 +580,9 @@ def get_users():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 10, type=int)
     search = request.args.get('search', '')
+    print(f"Debug: Getting users - page: {page}, per_page: {per_page}, search: '{search}'")
     
-    query = User.query.filter(User.role != 'admin')
+    query = User.query.filter(User.is_admin == 0)
     if search:
         query = query.filter(User.username.contains(search) | User.email.contains(search))
     

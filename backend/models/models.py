@@ -29,13 +29,17 @@ class User(db.Model):
     def to_dict(self):
         """Convert user object to dictionary"""
         return {
+            'id': self.user_id,  # Use 'id' for frontend consistency
             'user_id': self.user_id,
+            'username': self.user_name,  # Map user_name to username for frontend
+            'email': self.user_name,     # Since user_name is email in your schema
             'user_name': self.user_name,
             'full_name': self.full_name,
             'qualification': self.qualification,
             'date_of_birth': self.date_of_birth.isoformat() if self.date_of_birth else None,
+            'dob': self.date_of_birth.isoformat() if self.date_of_birth else None,  # Alternative field name
             'is_admin': self.is_admin,
-            'created_at': self.created_at.isoformat()
+            'created_at': self.created_at.isoformat() if self.created_at else None
         }
 
 def create_admin_user():

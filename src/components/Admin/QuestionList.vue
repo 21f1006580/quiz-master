@@ -26,19 +26,33 @@
       <div class="filter-box" v-if="chapters.length > 0">
         <select
           v-model="selectedChapterId"
-          @change="loadQuestions"
+          @change="onChapterChange"
           class="form-control"
         >
-          <option value="">Select a chapter to view questions</option>
+          <option value="">Select a chapter</option>
           <option v-for="chapter in chapters" :key="chapter.id" :value="chapter.id">
             {{ chapter.name }}
           </option>
         </select>
         <i class="fas fa-book-open filter-icon"></i>
       </div>
+
+      <div class="filter-box" v-if="quizzes.length > 0">
+        <select
+          v-model="selectedQuizId"
+          @change="loadQuestions"
+          class="form-control"
+        >
+          <option value="">Select a quiz to view questions</option>
+          <option v-for="quiz in quizzes" :key="quiz.id" :value="quiz.id">
+            {{ quiz.title }} ({{ formatDate(quiz.date_of_quiz) }})
+          </option>
+        </select>
+        <i class="fas fa-clipboard-list filter-icon"></i>
+      </div>
       
       <!-- Search Box -->
-      <div class="search-box" v-if="selectedChapterId">
+      <div class="search-box" v-if="selectedQuizId">
         <input
           v-model="searchQuery"
           @input="filterQuestions"
@@ -55,15 +69,32 @@
       <i class="fas fa-spinner fa-spin"></i> Loading questions...
     </div>
 
-    <!-- Selected Chapter Info -->
-    <div v-else-if="selectedChapter" class="chapter-info">
-      <h3>{{ selectedChapter.name }}</h3>
-      <p v-if="selectedChapter.description">{{ selectedChapter.description }}</p>
-      <small class="text-muted">Subject: {{ selectedSubject && selectedSubject.name }}</small>
+    <!-- Selected Quiz Info -->
+    <div v-else-if="selectedQuiz" class="quiz-info">
+      <h3>{{ selectedQuiz.title }}</h3>
+      <div class="quiz-details">
+        <span class="quiz-detail">
+          <i class="fas fa-calendar"></i>
+          {{ formatDate(selectedQuiz.date_of_quiz) }}
+        </span>
+        <span class="quiz-detail">
+          <i class="fas fa-clock"></i>
+          {{ selectedQuiz.time_duration }} minutes
+        </span>
+        <span class="quiz-detail">
+          <i class="fas fa-book-open"></i>
+          {{ selectedChapter && selectedChapter.name }}
+        </span>
+        <span class="quiz-detail">
+          <i class="fas fa-book"></i>
+          {{ selectedSubject && selectedSubject.name }}
+        </span>
+      </div>
+      <p v-if="selectedQuiz.remarks" class="quiz-remarks">{{ selectedQuiz.remarks }}</p>
     </div>
 
     <!-- Questions Table -->
-    <div v-if="selectedChapterId && !loading" class="table-container">
+    <div v-if="selectedQuizId && !loading" class="table-container">
       <table class="questions-table">
         <thead>
           <tr>
@@ -71,7 +102,6 @@
             <th>Question</th>
             <th>Options</th>
             <th>Correct Answer</th>
-            <th>Quiz</th>
             <th>Created At</th>
             <th>Actions</th>
           </tr>
@@ -95,7 +125,6 @@
             <td>
               <span class="correct-answer">Option {{ question.correct_option }}</span>
             </td>
-            <td>{{ question.quiz_title || 'Default Quiz' }}</td>
             <td>{{ formatDate(question.created_at) }}</td>
             <td class="actions">
               <button
@@ -128,21 +157,30 @@
       <div v-if="filteredQuestions.length === 0 && !loading" class="empty-state">
         <i class="fas fa-question-circle fa-3x"></i>
         <h3>No questions found</h3>
-        <p>{{ searchQuery ? 'No questions match your search.' : 'Start by creating your first question for this chapter.' }}</p>
+        <p>{{ searchQuery ? 'No questions match your search.' : 'Start by creating your first question for this quiz.' }}</p>
       </div>
     </div>
 
-    <!-- No Selection State -->
+    <!-- No Selection States -->
     <div v-else-if="!selectedSubjectId && !loading" class="empty-state">
       <i class="fas fa-book fa-3x"></i>
-      <h3>Select a Subject and Chapter</h3>
-      <p>Choose a subject and chapter from the dropdowns above to view and manage questions.</p>
+      <h3>Select a Subject, Chapter, and Quiz</h3>
+      <p>Choose a subject, chapter, and quiz from the dropdowns above to view and manage questions.</p>
     </div>
 
     <div v-else-if="selectedSubjectId && !selectedChapterId && !loading && chapters.length === 0" class="empty-state">
       <i class="fas fa-book-open fa-3x"></i>
       <h3>No Chapters Available</h3>
-      <p>This subject doesn't have any chapters yet. Create chapters first before adding questions.</p>
+      <p>This subject doesn't have any chapters yet. Create chapters first before creating quizzes.</p>
+    </div>
+
+    <div v-else-if="selectedChapterId && !selectedQuizId && !loading && quizzes.length === 0" class="empty-state">
+      <i class="fas fa-clipboard-list fa-3x"></i>
+      <h3>No Quizzes Available</h3>
+      <p>This chapter doesn't have any quizzes yet. Create quizzes first before adding questions.</p>
+      <router-link to="/admin/quizzes" class="btn btn-primary">
+        <i class="fas fa-plus"></i> Create Quiz
+      </router-link>
     </div>
 
     <!-- Create/Edit Modal -->
@@ -180,6 +218,7 @@
               <select
                 id="chapter"
                 v-model="form.chapter_id"
+                @change="onFormChapterChange"
                 class="form-control"
                 :class="{ 'error': errors.chapter_id }"
                 :disabled="!form.subject_id || formChapters.length === 0"
@@ -191,10 +230,29 @@
                 </option>
               </select>
               <span v-if="errors.chapter_id" class="error-text">{{ errors.chapter_id }}</span>
-              <small class="form-text text-muted">
-                Questions will be added to a quiz automatically if none exists for this chapter.
-              </small>
             </div>
+          </div>
+
+          <div class="form-group">
+            <label for="quiz">Quiz *</label>
+            <select
+              id="quiz"
+              v-model="form.quiz_id"
+              class="form-control"
+              :class="{ 'error': errors.quiz_id }"
+              :disabled="!form.chapter_id || formQuizzes.length === 0"
+              required
+            >
+              <option value="">Select a quiz</option>
+              <option v-for="quiz in formQuizzes" :key="quiz.id" :value="quiz.id">
+                {{ quiz.title }} - {{ formatDate(quiz.date_of_quiz) }}
+              </option>
+            </select>
+            <span v-if="errors.quiz_id" class="error-text">{{ errors.quiz_id }}</span>
+            <small class="form-text text-muted">
+              No quizzes available? 
+              <router-link to="/admin/quizzes" target="_blank">Create a quiz first</router-link>
+            </small>
           </div>
           
           <div class="form-group">
@@ -366,12 +424,17 @@
             
             <div class="detail-row">
               <strong>Quiz:</strong>
-              <span>{{ viewingQuestion.quiz_title || 'Default Quiz' }}</span>
+              <span>{{ selectedQuiz && selectedQuiz.title }}</span>
             </div>
             
             <div class="detail-row">
               <strong>Chapter:</strong>
-              <span>{{ viewingQuestion.chapter_name || (selectedChapter && selectedChapter.name) }}</span>
+              <span>{{ selectedChapter && selectedChapter.name }}</span>
+            </div>
+
+            <div class="detail-row">
+              <strong>Subject:</strong>
+              <span>{{ selectedSubject && selectedSubject.name }}</span>
             </div>
           </div>
         </div>
@@ -394,13 +457,17 @@ export default {
     return {
       subjects: [],
       chapters: [],
+      quizzes: [],
       formChapters: [],
+      formQuizzes: [],
       questions: [],
       filteredQuestions: [],
       selectedSubjectId: '',
       selectedChapterId: '',
+      selectedQuizId: '',
       selectedSubject: null,
       selectedChapter: null,
+      selectedQuiz: null,
       loading: false,
       saving: false,
       showModal: false,
@@ -432,17 +499,11 @@ export default {
   methods: {
     async loadSubjects() {
       try {
-        console.log('Loading subjects...')
         const response = await axios.get('/api/admin/subjects', {
           headers: this.getAuthHeaders()
         })
         
-        console.log('Subjects response:', response.data)
-        
-        // Handle both paginated and non-paginated responses
         this.subjects = response.data.subjects || response.data || []
-        
-        console.log('Loaded subjects:', this.subjects.length)
         
       } catch (error) {
         console.error('Error loading subjects:', error)
@@ -453,26 +514,26 @@ export default {
 
     async onSubjectChange() {
       this.selectedChapterId = ''
+      this.selectedQuizId = ''
       this.selectedChapter = null
+      this.selectedQuiz = null
+      this.chapters = []
+      this.quizzes = []
       this.questions = []
       this.filteredQuestions = []
       
       if (!this.selectedSubjectId) {
-        this.chapters = []
         this.selectedSubject = null
         return
       }
       
-      // Find selected subject
       this.selectedSubject = this.subjects.find(s => s.id == this.selectedSubjectId)
       
       try {
-        console.log('Loading chapters for subject:', this.selectedSubjectId)
         const response = await axios.get(`/api/admin/subjects/${this.selectedSubjectId}/chapters`, {
           headers: this.getAuthHeaders()
         })
         
-        console.log('Chapters response:', response.data)
         this.chapters = response.data.chapters || []
         
       } catch (error) {
@@ -481,29 +542,53 @@ export default {
         this.chapters = []
       }
     },
-    
-    async loadQuestions() {
+
+    async onChapterChange() {
+      this.selectedQuizId = ''
+      this.selectedQuiz = null
+      this.quizzes = []
+      this.questions = []
+      this.filteredQuestions = []
+      
       if (!this.selectedChapterId) {
-        this.questions = []
-        this.filteredQuestions = []
         this.selectedChapter = null
         return
       }
       
-      // Find selected chapter
       this.selectedChapter = this.chapters.find(c => c.id == this.selectedChapterId)
       
       try {
-        this.loading = true
-        console.log('Loading questions for chapter:', this.selectedChapterId)
-        
-        const response = await axios.get(`/api/admin/chapters/${this.selectedChapterId}/questions`, {
+        const response = await axios.get(`/api/admin/chapters/${this.selectedChapterId}/quizzes`, {
           headers: this.getAuthHeaders()
         })
         
-        console.log('Questions response:', response.data)
+        this.quizzes = response.data.quizzes || []
         
-        this.questions = response.data.questions || response.data || []
+      } catch (error) {
+        console.error('Error loading quizzes:', error)
+        this.showMessage('Error loading quizzes: ' + this.getErrorMessage(error), 'error')
+        this.quizzes = []
+      }
+    },
+    
+    async loadQuestions() {
+      if (!this.selectedQuizId) {
+        this.questions = []
+        this.filteredQuestions = []
+        this.selectedQuiz = null
+        return
+      }
+      
+      this.selectedQuiz = this.quizzes.find(q => q.id == this.selectedQuizId)
+      
+      try {
+        this.loading = true
+        
+        const response = await axios.get(`/api/admin/quizzes/${this.selectedQuizId}/questions`, {
+          headers: this.getAuthHeaders()
+        })
+        
+        this.questions = response.data.questions || []
         this.filterQuestions()
         
       } catch (error) {
@@ -513,7 +598,6 @@ export default {
         this.filteredQuestions = []
       } finally {
         this.loading = false
-        console.log('Loading finished, questions:', this.questions.length)
       }
     },
     
@@ -548,13 +632,17 @@ export default {
         option3: question.option3 || '',
         option4: question.option4 || '',
         correct_option: question.correct_option || 1,
-        subject_id: (this.selectedSubjectId || '').toString(),
-        chapter_id: (question.chapter_id || this.selectedChapterId || '').toString(),
-        quiz_id: (question.quiz_id || '').toString()
+        subject_id: this.selectedSubjectId || '',
+        chapter_id: this.selectedChapterId || '',
+        quiz_id: this.selectedQuizId || ''
       }
       
       if (this.form.subject_id) {
-        this.onFormSubjectChange()
+        this.onFormSubjectChange().then(() => {
+          if (this.form.chapter_id) {
+            this.onFormChapterChange()
+          }
+        })
       }
       this.errors = {}
       this.showModal = true
@@ -587,9 +675,10 @@ export default {
         correct_option: 1,
         subject_id: this.selectedSubjectId || '',
         chapter_id: this.selectedChapterId || '',
-        quiz_id: ''
+        quiz_id: this.selectedQuizId || ''
       }
       this.formChapters = []
+      this.formQuizzes = []
       if (this.form.subject_id) {
         this.onFormSubjectChange()
       }
@@ -599,6 +688,7 @@ export default {
       this.form.chapter_id = ''
       this.form.quiz_id = ''
       this.formChapters = []
+      this.formQuizzes = []
       
       if (!this.form.subject_id) return
       
@@ -612,6 +702,25 @@ export default {
       } catch (error) {
         console.error('Error loading chapters for form:', error)
         this.formChapters = []
+      }
+    },
+
+    async onFormChapterChange() {
+      this.form.quiz_id = ''
+      this.formQuizzes = []
+      
+      if (!this.form.chapter_id) return
+      
+      try {
+        const response = await axios.get(`/api/admin/chapters/${this.form.chapter_id}/quizzes`, {
+          headers: this.getAuthHeaders()
+        })
+        
+        this.formQuizzes = response.data.quizzes || []
+        
+      } catch (error) {
+        console.error('Error loading quizzes for form:', error)
+        this.formQuizzes = []
       }
     },
     
@@ -641,8 +750,8 @@ export default {
           return
         }
         
-        if (!this.form.chapter_id) {
-          this.errors.chapter_id = 'Chapter is required'
+        if (!this.form.quiz_id) {
+          this.errors.quiz_id = 'Quiz is required'
           return
         }
         
@@ -653,12 +762,7 @@ export default {
           option3: (this.form.option3 || '').trim(),
           option4: (this.form.option4 || '').trim(),
           correct_option: parseInt(this.form.correct_option),
-          chapter_id: parseInt(this.form.chapter_id)
-        }
-        
-        // If editing, include quiz_id
-        if (this.editingQuestion && this.form.quiz_id) {
-          data.quiz_id = parseInt(this.form.quiz_id)
+          quiz_id: parseInt(this.form.quiz_id)
         }
         
         let response
@@ -679,8 +783,8 @@ export default {
         this.showMessage(response.data.message, 'success')
         this.closeModal()
         
-        // Reload questions for the selected chapter
-        if (this.selectedChapterId) {
+        // Reload questions for the selected quiz
+        if (this.selectedQuizId) {
           this.loadQuestions()
         }
         
@@ -738,9 +842,7 @@ export default {
       return new Date(dateString).toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
+        day: 'numeric'
       })
     },
     
@@ -807,7 +909,7 @@ export default {
   color: #666;
 }
 
-.chapter-info {
+.quiz-info {
   background: #f8f9fa;
   padding: 16px;
   border-radius: 8px;
@@ -815,19 +917,34 @@ export default {
   border-left: 4px solid #007bff;
 }
 
-.chapter-info h3 {
-  margin: 0 0 8px 0;
+.quiz-info h3 {
+  margin: 0 0 12px 0;
   color: #333;
 }
 
-.chapter-info p {
-  margin: 0 0 4px 0;
+.quiz-details {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.quiz-detail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
   color: #666;
 }
 
-.text-muted {
-  color: #6c757d;
-  font-size: 0.9em;
+.quiz-detail i {
+  color: #007bff;
+}
+
+.quiz-remarks {
+  margin: 8px 0 0 0;
+  color: #666;
+  font-style: italic;
 }
 
 .table-container {
@@ -1190,6 +1307,10 @@ export default {
   color: #333;
 }
 
+.empty-state .btn {
+  margin-top: 16px;
+}
+
 .alert {
   position: fixed;
   top: 20px;
@@ -1224,6 +1345,11 @@ export default {
     flex-direction: column;
     gap: 16px;
     align-items: stretch;
+  }
+  
+  .quiz-details {
+    flex-direction: column;
+    gap: 8px;
   }
   
   .questions-table {
