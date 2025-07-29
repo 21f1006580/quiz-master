@@ -15,11 +15,11 @@ def user_dashboard():
     if not user:
         return jsonify({'error': 'User not found'}), 404
 
-    subjects = Subject.query.all()
+    subjects = Subject.query.filter_by(is_active=True).all()
     subject_list = []
     for subj in subjects:
         subject_list.append({
-            'id': subj.id,
+            'id': subj.subject_id,
             'name': subj.name,
             'description': subj.description
         })
@@ -36,7 +36,7 @@ def get_quizzes(subject_id):
     for chap in chapters:
         for quiz in chap.quizzes:
             quiz_list.append({
-                'quiz_id': quiz.id,
+                'quiz_id': quiz.quiz_id,
                 'chapter_name': chap.name,
                 'date': quiz.date_of_quiz,
                 'duration': quiz.time_duration,
@@ -50,16 +50,16 @@ def get_quizzes(subject_id):
 @jwt_required()
 def get_quiz_details(quiz_id):
     quiz = Quiz.query.get_or_404(quiz_id)
-    questions = Question.query.filter_by(quiz_id=quiz.id).all()
+    questions = Question.query.filter_by(quiz_id=quiz.quiz_id).all()
 
     question_data = [{
-        'id': q.id,
+        'id': q.question_id,
         'statement': q.question_statement,
         'options': [q.option1, q.option2, q.option3, q.option4]
     } for q in questions]
 
     return jsonify({
-        'quiz_id': quiz.id,
+        'quiz_id': quiz.quiz_id,
         'duration': quiz.time_duration,
         'questions': question_data
     })
@@ -98,11 +98,16 @@ def submit_quiz():
         if question and question.correct_option == ans:
             total_score += 1
 
+    # Get total questions for this quiz
+    total_questions = Question.query.filter_by(quiz_id=quiz_id).count()
+    
     score_entry = Score(
         quiz_id=quiz_id,
         user_id=user.user_id,
-        total_scored=total_score,
-        time_stamp_of_attempt=datetime.utcnow()
+        total_questions=total_questions,
+        correct_answers=total_score,
+        total_score=(total_score / total_questions * 100) if total_questions > 0 else 0,
+        time_taken=0  # We'll add timer functionality later
     )
     db.session.add(score_entry)
     db.session.commit()
@@ -123,8 +128,8 @@ def get_user_scores():
     for s in scores:
         result.append({
             'quiz_id': s.quiz_id,
-            'total_scored': s.total_scored,
-            'attempted_on': s.time_stamp_of_attempt.strftime('%Y-%m-%d %H:%M')
+            'total_scored': s.correct_answers,
+            'attempted_on': s.attempt_datetime.strftime('%Y-%m-%d %H:%M')
         })
 
     return jsonify({'scores': result})
@@ -137,7 +142,7 @@ def get_quiz_summary(quiz_id):
     user = User.query.filter_by(user_name=user_name).first()
 
     score = Score.query.filter_by(quiz_id=quiz_id, user_id=user.user_id)\
-        .order_by(Score.time_stamp_of_attempt.desc()).first()
+        .order_by(Score.attempt_datetime.desc()).first()
 
     if not score:
         return jsonify({'error': 'No attempt found for this quiz'}), 404
@@ -153,8 +158,8 @@ def get_quiz_summary(quiz_id):
         'date': quiz.date_of_quiz,
         'duration': quiz.time_duration,
         'remarks': quiz.remarks,
-        'score': score.total_scored,
-        'attempted_on': score.time_stamp_of_attempt.strftime('%Y-%m-%d %H:%M:%S')
+        'score': score.correct_answers,
+        'attempted_on': score.attempt_datetime.strftime('%Y-%m-%d %H:%M:%S')
     })
 
 @user_bp.route('/score-summary', methods=['GET'])
@@ -164,7 +169,7 @@ def get_score_summary():
     user = User.query.filter_by(user_name=user_name).first()
 
     scores = Score.query.filter_by(user_id=user.user_id).all()
-    total_score = sum([s.total_scored for s in scores])
+    total_score = sum([s.correct_answers for s in scores])
     quiz_count = len(scores)
     avg_score = round(total_score / quiz_count, 2) if quiz_count > 0 else 0
 
