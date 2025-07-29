@@ -27,11 +27,13 @@ A comprehensive, full-stack quiz application built with **Flask (Python)** backe
 ## 🚀 Quick Start
 
 ### Prerequisites
-- **Python 3.12+**
-- **Node.js 16+**
-- **npm**
+- **Python 3.8+** (Python 3.9+ recommended)
+- **Node.js 16+** (Node.js 18+ recommended)
+- **npm** (included with Node.js)
 
 ### One-Command Setup
+
+#### For Mac/Linux:
 ```bash
 # Clone and setup everything
 git clone <repository-url>
@@ -39,6 +41,22 @@ cd quiz-master
 chmod +x start.sh
 ./start.sh
 ```
+
+#### For Windows:
+```cmd
+REM Clone and setup everything
+git clone <repository-url>
+cd quiz-master
+start.bat
+```
+
+**Note**: The startup scripts will automatically:
+- ✅ Check for required dependencies (Python, Node.js, npm)
+- ✅ Create Python virtual environment
+- ✅ Install Python dependencies
+- ✅ Install Node.js dependencies
+- ✅ Seed the database with sample data
+- ✅ Start both backend and frontend servers
 
 ### Manual Setup
 
@@ -116,7 +134,8 @@ The application comes pre-loaded with:
 quiz-master/
 ├── app.py                    # Flask application entry point
 ├── seed_data.py             # Database seeding script
-├── start.sh                 # One-command startup script
+├── start.sh                 # Mac/Linux startup script
+├── start.bat                # Windows startup script
 ├── requirements.txt          # Python dependencies
 ├── package.json             # Node.js dependencies
 ├── vue.config.js            # Vue.js configuration
@@ -243,6 +262,93 @@ The application uses SQLite for development. For production, consider:
 - **PostgreSQL** - For better performance and concurrency
 - **MySQL** - For compatibility with existing infrastructure
 - **MongoDB** - For document-based data storage
+
+## 🛠️ Troubleshooting
+
+### Common Issues
+
+#### 1. **Node.js Version Issues**
+```bash
+# Error: Unexpected token {
+# Solution: Update Node.js to version 16+
+
+# Check current version
+node --version
+
+# Update using homebrew (Mac)
+brew install node
+
+# Update using nvm (Mac/Linux)
+nvm install --lts
+nvm use --lts
+
+# Update on Windows: Download from nodejs.org
+```
+
+#### 2. **Python Virtual Environment Issues**
+```bash
+# Error: Command 'python3' not found
+# Solution: Install Python or use correct command
+
+# Try different Python commands
+python --version
+python3 --version
+python3.9 --version
+
+# Create venv with specific version
+python3.9 -m venv venv
+```
+
+#### 3. **Port Already in Use**
+```bash
+# Error: Port 8080 or 5000 already in use
+# Solution: Kill processes or use different ports
+
+# Find process using port
+lsof -i :8080  # Mac/Linux
+netstat -ano | findstr :8080  # Windows
+
+# Kill process
+kill -9 <PID>  # Mac/Linux
+taskkill /PID <PID> /F  # Windows
+```
+
+#### 4. **Permission Issues (Mac/Linux)**
+```bash
+# Error: Permission denied
+# Solution: Make script executable
+chmod +x start.sh
+
+# Or run with bash
+bash start.sh
+```
+
+#### 5. **Database Not Found**
+```bash
+# Error: Database file not found
+# Solution: Run the seeding script
+python seed_data.py
+```
+
+### Platform-Specific Notes
+
+#### **Windows**
+- Use `start.bat` instead of `start.sh`
+- Virtual environment activation: `venv\Scripts\activate.bat`
+- Use Command Prompt or PowerShell
+- Ensure Python is added to PATH during installation
+
+#### **Mac**
+- Use `start.sh`
+- Virtual environment activation: `source venv/bin/activate`
+- May need to install Xcode Command Line Tools: `xcode-select --install`
+- Use Homebrew for package management
+
+#### **Linux**
+- Use `start.sh`
+- Virtual environment activation: `source venv/bin/activate`
+- Install Python dev headers: `sudo apt-get install python3-dev` (Ubuntu/Debian)
+- Install build essentials: `sudo apt-get install build-essential`
 
 ## 🤝 Contributing
 
