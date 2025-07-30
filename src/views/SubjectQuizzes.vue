@@ -98,7 +98,11 @@
           <div class="quiz-header">
             <h3>{{ quiz.title }}</h3>
             <div class="quiz-status">
-              <span v-if="quiz.attempted" class="status-badge attempted">
+              <span v-if="quiz.is_anytime_quiz" class="status-badge anytime">
+                <i class="fas fa-infinity"></i>
+                Anytime
+              </span>
+              <span v-else-if="quiz.attempted" class="status-badge attempted">
                 <i class="fas fa-check"></i>
                 Completed
               </span>
@@ -635,6 +639,11 @@ export default {
 .status-badge.upcoming {
   background: #fff3cd;
   color: #856404;
+}
+
+.status-badge.anytime {
+  background: #e2e3e5;
+  color: #383d41;
 }
 
 .quiz-details {

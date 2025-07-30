@@ -123,6 +123,9 @@ class Quiz(db.Model):
     end_date_time = db.Column(db.DateTime, nullable=True)  # End time (optional)
     time_duration = db.Column(db.Integer, nullable=False)  # Duration in minutes
     
+    # Anytime quiz feature
+    is_anytime_quiz = db.Column(db.Boolean, default=False)  # Can be taken anytime
+    
     # Auto-expiry settings
     is_active = db.Column(db.Boolean, default=True)
     auto_expire = db.Column(db.Boolean, default=True)  # Auto-lock after expiry
@@ -177,6 +180,10 @@ class Quiz(db.Model):
         if not self.is_active:
             return 'inactive'
         
+        # For anytime quizzes, only check if active
+        if self.is_anytime_quiz:
+            return 'active'
+        
         # Check if quiz hasn't started yet
         if now < self.date_of_quiz:
             return 'upcoming'
@@ -215,6 +222,21 @@ class Quiz(db.Model):
         
         now = datetime.utcnow()
         
+        # For anytime quizzes, skip time-based checks
+        if self.is_anytime_quiz:
+            # Only check if quiz is active and user hasn't attempted (if multiple attempts not allowed)
+            if user_id and not self.allow_multiple_attempts:
+                existing_attempt = Score.query.filter_by(
+                    quiz_id=self.quiz_id, 
+                    user_id=user_id
+                ).first()
+                
+                if existing_attempt:
+                    return False, "You have already attempted this quiz"
+            
+            return True, "Quiz is available anytime"
+        
+        # For scheduled quizzes, check time constraints
         # Check if quiz has started
         if now < self.date_of_quiz:
             return False, "Quiz has not started yet"
@@ -258,6 +280,7 @@ class Quiz(db.Model):
             'end_date_time': self.end_date_time.isoformat() if self.end_date_time else None,
             'effective_end_time': self.get_effective_end_time().isoformat() if self.get_effective_end_time() else None,
             'time_duration': self.time_duration,
+            'is_anytime_quiz': self.is_anytime_quiz,
             'is_active': self.is_active,
             'auto_expire': self.auto_expire,
             'grace_period': self.grace_period,

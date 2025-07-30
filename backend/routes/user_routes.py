@@ -189,6 +189,7 @@ def get_quizzes_by_subject(subject_id):
                     'remarks': quiz.remarks,
                     'question_count': question_count,
                     'is_active': quiz.is_active,
+                    'is_anytime_quiz': quiz.is_anytime_quiz,
                     'attempted': user_score is not None,
                     'user_score': user_score.total_score if user_score else None,
                     'attempt_date': user_score.attempt_datetime.isoformat() if user_score else None
@@ -305,7 +306,8 @@ def start_quiz(quiz_id):
             'time_remaining_until_expiry': quiz.get_time_remaining(),
             'quiz_expires_at': quiz.get_effective_end_time().isoformat() if quiz.get_effective_end_time() else None,
             'show_results_immediately': quiz.show_results_immediately,
-            'auto_expire_enabled': quiz.auto_expire
+            'auto_expire_enabled': quiz.auto_expire,
+            'is_anytime_quiz': quiz.is_anytime_quiz
         }
     
         print(f"Time until expiry: {quiz.get_time_remaining()} minutes")

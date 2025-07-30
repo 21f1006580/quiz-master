@@ -92,6 +92,25 @@
           </div>
           
           <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" v-model="form.is_anytime_quiz" />
+              <span>Anytime Quiz (can be taken anytime)</span>
+            </label>
+            <small class="form-help">If enabled, students can take this quiz at any time without scheduling restrictions</small>
+          </div>
+          
+          <div v-if="!form.is_anytime_quiz" class="form-row">
+            <div class="form-group">
+              <label>Start Date *</label>
+              <input v-model="form.start_date" type="date" class="form-control" :min="today" required />
+            </div>
+            <div class="form-group">
+              <label>Start Time *</label>
+              <input v-model="form.start_time" type="time" class="form-control" required />
+            </div>
+          </div>
+          
+          <div class="form-group">
             <label>Description</label>
             <textarea v-model="form.remarks" class="form-control" rows="3"></textarea>
           </div>
@@ -212,6 +231,7 @@ export default {
         time_duration: 30,
         remarks: '',
         is_active: true,
+        is_anytime_quiz: false,
         auto_expire: true,  // Enable by default
         grace_period: 5     // 5 minute grace period by default
       }
@@ -286,6 +306,7 @@ export default {
       time_duration: 30,
       remarks: '',
       is_active: true,
+      is_anytime_quiz: false,
       auto_expire: false,
       grace_period: 5
     }
@@ -296,14 +317,15 @@ export default {
       this.editingQuiz = quiz
       const startDate = new Date(quiz.date_of_quiz)
       
-      this.form = {
-        title: quiz.title,
-        start_date: startDate.toISOString().split('T')[0],
-        start_time: startDate.toTimeString().slice(0, 5),
-        time_duration: quiz.time_duration,
-        remarks: quiz.remarks || '',
-        is_active: quiz.is_active !== false
-      }
+          this.form = {
+      title: quiz.title,
+      start_date: startDate.toISOString().split('T')[0],
+      start_time: startDate.toTimeString().slice(0, 5),
+      time_duration: quiz.time_duration,
+      remarks: quiz.remarks || '',
+      is_active: quiz.is_active !== false,
+      is_anytime_quiz: quiz.is_anytime_quiz || false
+    }
       this.showModal = true
     },editQuiz(quiz) {
     this.editingQuiz = quiz
@@ -343,9 +365,17 @@ export default {
       this.saving = true
       
       // Basic validation
-      if (!this.form.title || !this.form.start_date || !this.form.start_time) {
-        this.showMessage('Please fill in all required fields', 'error')
+      if (!this.form.title) {
+        this.showMessage('Quiz title is required', 'error')
         return
+      }
+      
+      // Validation for scheduled quizzes
+      if (!this.form.is_anytime_quiz) {
+        if (!this.form.start_date || !this.form.start_time) {
+          this.showMessage('Start date and time are required for scheduled quizzes', 'error')
+          return
+        }
       }
       
       // Enhanced validation for auto-expiry
@@ -374,8 +404,9 @@ export default {
       const data = {
         title: this.form.title,
         chapter_id: this.selectedChapterId,
-        start_date: this.form.start_date,
-        start_time: this.form.start_time,
+        is_anytime_quiz: this.form.is_anytime_quiz,
+        start_date: this.form.is_anytime_quiz ? null : this.form.start_date,
+        start_time: this.form.is_anytime_quiz ? null : this.form.start_time,
         end_date: this.form.auto_expire ? this.form.end_date : null,
         end_time: this.form.auto_expire ? this.form.end_time : null,
         time_duration: this.form.time_duration,

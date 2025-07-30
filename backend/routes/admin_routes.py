@@ -517,24 +517,39 @@ def create_quiz():
     try:
         data = request.get_json()
         
-        # Validation
-        required_fields = ['title', 'chapter_id', 'start_date', 'start_time', 'time_duration']
-        for field in required_fields:
-            if not data.get(field):
-                return jsonify({'error': f'{field} is required'}), 400
+        # Check if this is an anytime quiz
+        is_anytime_quiz = data.get('is_anytime_quiz', False)
+        
+        # Validation for scheduled quizzes
+        if not is_anytime_quiz:
+            required_fields = ['title', 'chapter_id', 'start_date', 'start_time', 'time_duration']
+            for field in required_fields:
+                if not data.get(field):
+                    return jsonify({'error': f'{field} is required for scheduled quizzes'}), 400
+        else:
+            # For anytime quizzes, only title, chapter_id, and time_duration are required
+            required_fields = ['title', 'chapter_id', 'time_duration']
+            for field in required_fields:
+                if not data.get(field):
+                    return jsonify({'error': f'{field} is required'}), 400
         
         # Verify chapter exists
         chapter = Chapter.query.get(data['chapter_id'])
         if not chapter:
             return jsonify({'error': 'Chapter not found'}), 404
         
-        # Parse start datetime
-        start_datetime_str = f"{data['start_date']} {data['start_time']}"
-        start_datetime = datetime.strptime(start_datetime_str, '%Y-%m-%d %H:%M')
-        
-        # Validate start time is in future
-        if start_datetime <= datetime.now():
-            return jsonify({'error': 'Quiz start time must be in the future'}), 400
+        # Handle start datetime based on quiz type
+        if is_anytime_quiz:
+            # For anytime quizzes, set start time to current time
+            start_datetime = datetime.now()
+        else:
+            # Parse start datetime for scheduled quizzes
+            start_datetime_str = f"{data['start_date']} {data['start_time']}"
+            start_datetime = datetime.strptime(start_datetime_str, '%Y-%m-%d %H:%M')
+            
+            # Validate start time is in future for scheduled quizzes
+            if start_datetime <= datetime.now():
+                return jsonify({'error': 'Quiz start time must be in the future'}), 400
         
         # Create quiz
         quiz = Quiz(
@@ -542,6 +557,7 @@ def create_quiz():
             chapter_id=data['chapter_id'],
             date_of_quiz=start_datetime,
             time_duration=int(data['time_duration']),
+            is_anytime_quiz=is_anytime_quiz,
             remarks=data.get('remarks', ''),
             is_active=data.get('is_active', True)
         )
@@ -583,8 +599,15 @@ def update_quiz(quiz_id):
         if 'is_active' in data:
             quiz.is_active = data['is_active']
         
-        # Update start datetime if provided
-        if data.get('start_date') and data.get('start_time'):
+        # Update anytime quiz setting
+        if 'is_anytime_quiz' in data:
+            quiz.is_anytime_quiz = data['is_anytime_quiz']
+            # If converting to anytime quiz, set start time to current time
+            if data['is_anytime_quiz']:
+                quiz.date_of_quiz = datetime.now()
+        
+        # Update start datetime if provided (only for scheduled quizzes)
+        if not quiz.is_anytime_quiz and data.get('start_date') and data.get('start_time'):
             start_datetime_str = f"{data['start_date']} {data['start_time']}"
             start_datetime = datetime.strptime(start_datetime_str, '%Y-%m-%d %H:%M')
             quiz.date_of_quiz = start_datetime
