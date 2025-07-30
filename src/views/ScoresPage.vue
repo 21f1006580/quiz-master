@@ -77,26 +77,18 @@ export default {
   methods: {
     async loadScores() {
       try {
-        const token = localStorage.getItem('access_token')
-        
         // Load scores
-        const scoresResponse = await fetch('/api/user/scores', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
+        const scoresResponse = await this.$api.get('/user/scores')
         
-        if (scoresResponse.ok) {
-          const data = await scoresResponse.json()
-          this.scores = data.scores
+        if (scoresResponse.status === 200) {
+          this.scores = scoresResponse.data.scores
         }
 
         // Load score summary
-        const summaryResponse = await fetch('/api/user/score-summary', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
+        const summaryResponse = await this.$api.get('/user/score-summary')
         
-        if (summaryResponse.ok) {
-          const data = await summaryResponse.json()
-          this.scoreSummary = data
+        if (summaryResponse.status === 200) {
+          this.scoreSummary = summaryResponse.data
         }
       } catch (error) {
         console.error('Error loading scores:', error)

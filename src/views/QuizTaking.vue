@@ -276,8 +276,8 @@ export default {
 
         const response = await this.$api.get(`/user/quiz/${this.quizId}/take`)
         
-        if (response.ok) {
-          const data = await response.json()
+        if (response.status === 200) {
+          const data = response.data
           console.log("Quiz data with expiry info:", data)
           
           this.quizDetails = {
@@ -304,12 +304,11 @@ export default {
           this.startQuestionTimer()
           
         } else {
-          const errorData = await response.json()
-          this.error = errorData.error || 'Failed to load quiz'
+          this.error = response.data?.error || 'Failed to load quiz'
           console.error("Quiz loading error:", this.error)
           
           // Show specific error for expired quiz
-          if (errorData.quiz_status === 'expired') {
+          if (response.data?.quiz_status === 'expired') {
             alert('This quiz has expired and is no longer available.')
           } else {
             alert(this.error)
@@ -492,8 +491,8 @@ export default {
           time_taken: totalTimeSpent
         })
         
-        if (response.ok) {
-          const data = await response.json()
+        if (response.status === 200) {
+          const data = response.data
           console.log("Submit response:", data)
           
           this.finalScore = (data.score && data.score.percentage_score) ? data.score.percentage_score : 0
@@ -507,14 +506,13 @@ export default {
           }
           
         } else {
-          const errorData = await response.json()
-          console.error("Submit error:", errorData)
+          console.error("Submit error:", response.data)
           
-          if (errorData.error.includes('expired')) {
+          if (response.data?.error?.includes('expired')) {
             alert('Quiz expired before submission could be completed.')
             this.$router.push('/dashboard')
           } else {
-            alert('Error submitting quiz: ' + (errorData.error || 'Unknown error'))
+            alert('Error submitting quiz: ' + (response.data?.error || 'Unknown error'))
           }
         }
       } catch (error) {

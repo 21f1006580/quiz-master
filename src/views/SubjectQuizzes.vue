@@ -322,21 +322,18 @@ export default {
 
         console.log('Loading quizzes for subject:', this.subjectId)
 
-        const response = await this.$api.get(`/user/subjects/${this.subjectId}/quizzes`, {
-          headers
-        })
+        const response = await this.$api.get(`/user/subjects/${this.subjectId}/quizzes`)
 
         console.log('Response status:', response.status)
 
-        if (response.ok) {
-          const data = await response.json()
+        if (response.status === 200) {
+          const data = response.data
           console.log('Quizzes data:', data)
           
           this.subject = data.subject
           this.quizzes = data.quizzes || []
         } else {
-          const errorData = await response.json()
-          this.error = errorData.error || 'Failed to load quizzes'
+          this.error = response.data?.error || 'Failed to load quizzes'
         }
 
       } catch (error) {

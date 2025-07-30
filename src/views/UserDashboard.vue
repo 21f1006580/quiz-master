@@ -220,23 +220,23 @@ export default {
 
         // Load all dashboard data in parallel
         const [subjectsResponse, scoresResponse, summaryResponse] = await Promise.all([
-          axios.get('/api/user/dashboard', { headers: { 'Authorization': `Bearer ${token}` } }),
-          axios.get('/api/user/scores', { headers: { 'Authorization': `Bearer ${token}` } }),
-          axios.get('/api/user/score-summary', { headers: { 'Authorization': `Bearer ${token}` } })
+          this.$api.get('/user/dashboard'),
+          this.$api.get('/user/scores'),
+          this.$api.get('/user/score-summary')
         ])
 
         // Handle subjects
-        if (subjectsResponse.data && subjectsResponse.data.subjects) {
+        if (subjectsResponse.status === 200 && subjectsResponse.data.subjects) {
           this.subjects = subjectsResponse.data.subjects
         }
 
         // Handle recent scores (show last 5)
-        if (scoresResponse.data && scoresResponse.data.scores) {
+        if (scoresResponse.status === 200 && scoresResponse.data.scores) {
           this.recentScores = scoresResponse.data.scores.slice(0, 5)
         }
 
         // Handle score summary
-        if (summaryResponse.data) {
+        if (summaryResponse.status === 200) {
           this.scoreSummary = summaryResponse.data
         }
 
@@ -261,12 +261,9 @@ export default {
 
     async viewQuizSummary(quizId) {
       try {
-        const token = localStorage.getItem('access_token')
-        const response = await axios.get(`/api/user/quiz-summary/${quizId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
+        const response = await this.$api.get(`/user/quiz-summary/${quizId}`)
         
-        if (response.data) {
+        if (response.status === 200) {
           this.quizSummary = response.data
           this.showQuizSummary = true
         }
