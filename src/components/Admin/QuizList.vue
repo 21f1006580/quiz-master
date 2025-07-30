@@ -244,49 +244,53 @@ export default {
         console.error('Error loading chapters:', error)
         this.showMessage('Error loading chapters', 'error')
       }
-    },
+  },
     
-    async loadQuizzes() {
-      if (!this.selectedChapterId) return
+  async loadQuizzes() {
+    if (!this.selectedChapterId) return
+    
+    try {
+      this.loading = true
+      const token = localStorage.getItem('access_token')
+      const response = await fetch(`/api/admin/chapters/${this.selectedChapterId}/quizzes`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
       
-      try {
-        this.loading = true
-        const token = localStorage.getItem('access_token')
-        const response = await fetch(`/api/admin/chapters/${this.selectedChapterId}/quizzes`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-        
-        if (response.ok) {
-          const data = await response.json()
-          this.quizzes = data.quizzes || []
-        }
-      } catch (error) {
-        console.error('Error loading quizzes:', error)
-        this.showMessage('Error loading quizzes', 'error')
-      } finally {
-        this.loading = false
+      if (response.ok) {
+        const data = await response.json()
+        this.quizzes = data.quizzes || []
       }
-    },    
-    openCreateModal() {
-      if (!this.selectedChapterId) {
-        this.showMessage('Please select a chapter first', 'error')
-        return
-      }
-      
-      this.editingQuiz = null
-      const now = new Date()
-      const nextHour = new Date(now.getTime() + 60 * 60 * 1000)
-      
-      this.form = {
-        title: '',
-        start_date: now.toISOString().split('T')[0],
-        start_time: nextHour.toTimeString().slice(0, 5),
-        time_duration: 30,
-        remarks: '',
-        is_active: true
-      }
-      this.showModal = true
-    },
+    } catch (error) {
+      console.error('Error loading quizzes:', error)
+      this.showMessage('Error loading quizzes', 'error')
+    } finally {
+      this.loading = false
+    }
+  },
+  openCreateModal() {
+    if (!this.selectedChapterId) {
+      this.showMessage('Please select a chapter first', 'error')
+      return
+    }
+    
+    this.editingQuiz = null
+    const now = new Date()
+    const nextHour = new Date(now.getTime() + 60 * 60 * 1000)
+    
+    this.form = {
+      title: '',
+      start_date: now.toISOString().split('T')[0],
+      start_time: nextHour.toTimeString().slice(0, 5),
+      end_date: '',
+      end_time: '',
+      time_duration: 30,
+      remarks: '',
+      is_active: true,
+      auto_expire: false,
+      grace_period: 5
+    }
+    this.showModal = true
+  },
     
     editQuiz(quiz) {
       this.editingQuiz = quiz
@@ -301,7 +305,33 @@ export default {
         is_active: quiz.is_active !== false
       }
       this.showModal = true
-    },
+    },editQuiz(quiz) {
+    this.editingQuiz = quiz
+    const startDate = new Date(quiz.date_of_quiz)
+    
+    // Handle end date if it exists
+    let endDate = ''
+    let endTime = ''
+    if (quiz.end_date_time) {
+      const endDateTime = new Date(quiz.end_date_time)
+      endDate = endDateTime.toISOString().split('T')[0]
+      endTime = endDateTime.toTimeString().slice(0, 5)
+    }
+    
+    this.form = {
+      title: quiz.title,
+      start_date: startDate.toISOString().split('T')[0],
+      start_time: startDate.toTimeString().slice(0, 5),
+      end_date: endDate,
+      end_time: endTime,
+      time_duration: quiz.time_duration,
+      remarks: quiz.remarks || '',
+      is_active: quiz.is_active !== false,
+      auto_expire: quiz.auto_expire || false,
+      grace_period: quiz.grace_period || 5
+    }
+    this.showModal = true
+  },
     
     closeModal() {
       this.showModal = false
@@ -309,109 +339,200 @@ export default {
     },
     
     async saveQuiz() {
-      try {
-        this.saving = true
-        
-        const data = {
-          title: this.form.title,
-          chapter_id: this.selectedChapterId,
-          start_date: this.form.start_date,
-          start_time: this.form.start_time,
-          time_duration: this.form.time_duration,
-          remarks: this.form.remarks,
-          is_active: this.form.is_active
-        }
-        
-        const token = localStorage.getItem('access_token')
-        let response
-        
-        if (this.editingQuiz) {
-          response = await fetch(`/api/admin/quizzes/${this.editingQuiz.id}`, {
-            method: 'PUT',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(data)
-          })
-        } else {
-          response = await fetch('/api/admin/quizzes', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(data)
-          })
-        }
-        
-        if (response.ok) {
-          const result = await response.json()
-          this.showMessage(result.message, 'success')
-          this.closeModal()
-          this.loadQuizzes()
-        } else {
-          const error = await response.json()
-          this.showMessage(error.error || 'Error saving quiz', 'error')
-        }
-        
-      } catch (error) {
-        console.error('Error saving quiz:', error)
-        this.showMessage('Error saving quiz', 'error')
-      } finally {
-        this.saving = false
-      }
-    },
-    
-    async deleteQuiz(quiz) {
-      if (!confirm(`Delete "${quiz.title}"?`)) return
+    try {
+      this.saving = true
       
-      try {
-        const token = localStorage.getItem('access_token')
-        const response = await fetch(`/api/admin/quizzes/${quiz.id}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${token}` }
+      // Basic validation
+      if (!this.form.title || !this.form.start_date || !this.form.start_time) {
+        this.showMessage('Please fill in all required fields', 'error')
+        return
+      }
+      
+      // Enhanced validation for auto-expiry
+      if (this.form.auto_expire) {
+        if (!this.form.end_date || !this.form.end_time) {
+          this.showMessage('End date and time are required when auto-expiry is enabled', 'error')
+          return
+        }
+        
+        const startDateTime = new Date(`${this.form.start_date}T${this.form.start_time}`)
+        const endDateTime = new Date(`${this.form.end_date}T${this.form.end_time}`)
+        
+        if (endDateTime <= startDateTime) {
+          this.showMessage('End time must be after start time', 'error')
+          return
+        }
+        
+        // Minimum quiz duration check
+        const durationHours = (endDateTime - startDateTime) / (1000 * 60 * 60)
+        if (durationHours < 0.5) {
+          this.showMessage('Quiz must be available for at least 30 minutes', 'error')
+          return
+        }
+      }
+      
+      const data = {
+        title: this.form.title,
+        chapter_id: this.selectedChapterId,
+        start_date: this.form.start_date,
+        start_time: this.form.start_time,
+        end_date: this.form.auto_expire ? this.form.end_date : null,
+        end_time: this.form.auto_expire ? this.form.end_time : null,
+        time_duration: this.form.time_duration,
+        remarks: this.form.remarks,
+        is_active: this.form.is_active,
+        auto_expire: this.form.auto_expire,
+        grace_period: this.form.auto_expire ? this.form.grace_period : 0
+      }
+      
+      const token = localStorage.getItem('access_token')
+      let response
+      
+      if (this.editingQuiz) {
+        response = await fetch(`/api/admin/quizzes/${this.editingQuiz.id}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(data)
         })
-        
-        if (response.ok) {
-          this.showMessage('Quiz deleted successfully', 'success')
-          this.loadQuizzes()
-        }
-      } catch (error) {
-        console.error('Error deleting quiz:', error)
-        this.showMessage('Error deleting quiz', 'error')
+      } else {
+        response = await fetch('/api/admin/quizzes', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(data)
+        })
       }
-    },
-    
-    getStatus(quiz) {
-      const now = new Date()
-      const startDate = new Date(quiz.date_of_quiz)
       
-      if (!quiz.is_active) return 'Inactive'
-      if (now < startDate) return 'Upcoming'
-      if (quiz.end_date_time && now > new Date(quiz.end_date_time)) return 'Expired'
-      return 'Active'
-    },
+      if (response.ok) {
+        const result = await response.json()
+        this.showMessage(result.message, 'success')
+        this.closeModal()
+        this.loadQuizzes()
+      } else {
+        const error = await response.json()
+        console.error('Server error:', error)
+        this.showMessage(error.error || 'Error saving quiz', 'error')
+      }
+      
+    } catch (error) {
+      console.error('Error saving quiz:', error)
+      this.showMessage('Network error occurred while saving quiz', 'error')
+    } finally {
+      this.saving = false
+    }
+  },
     
-    getStatusClass(quiz) {
-      const status = this.getStatus(quiz)
-      return status.toLowerCase()
-    },
+  async deleteQuiz(quiz) {
+    if (!confirm(`Delete "${quiz.title}"? This action cannot be undone.`)) return
     
-    formatDate(dateString) {
-      if (!dateString) return 'N/A'
-      return new Date(dateString).toLocaleString()
-    },
+    try {
+      const token = localStorage.getItem('access_token')
+      const response = await fetch(`/api/admin/quizzes/${quiz.id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        this.showMessage(result.message || 'Quiz deleted successfully', 'success')
+        this.loadQuizzes()
+      } else {
+        const error = await response.json()
+        this.showMessage(error.error || 'Error deleting quiz', 'error')
+      }
+    } catch (error) {
+      console.error('Error deleting quiz:', error)
+      this.showMessage('Network error occurred while deleting quiz', 'error')
+    }
+  },
+  
     
-    showMessage(message, type = 'success') {
-      this.message = message
-      this.messageType = type
-      setTimeout(() => { this.message = '' }, 5000)
-    },
+  getStatus(quiz) {
+    const now = new Date()
+    const startDate = new Date(quiz.date_of_quiz)
+    
+    if (!quiz.is_active) return 'Inactive'
+    if (now < startDate) return 'Upcoming'
+    
+    // Check auto-expiry
+    if (quiz.auto_expire && quiz.end_date_time) {
+      const endDate = new Date(quiz.end_date_time)
+      const graceEnd = quiz.grace_period ? 
+        new Date(endDate.getTime() + quiz.grace_period * 60 * 1000) : endDate
+      
+      if (now > graceEnd) return 'Expired'
+      if (now > endDate) return 'Grace Period'
+      
+      // Check if ending soon (within 30 minutes)
+      const minutesUntilEnd = (endDate - now) / (1000 * 60)
+      if (minutesUntilEnd <= 30 && minutesUntilEnd > 0) return 'Ending Soon'
+    }
+    
+    return 'Active'
+  },
+    
+  getStatusClass(quiz) {
+    const status = this.getStatus(quiz)
+    return status.toLowerCase().replace(' ', '-')
+  },
+    
+  formatDate(dateString) {
+    if (!dateString) return 'N/A'
+    return new Date(dateString).toLocaleString()
+  },
+
+  formatDateTime(date, time) {
+    if (!date || !time) return 'Not set'
+    const dateTime = new Date(`${date}T${time}`)
+    return dateTime.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  },
+  formatDateTimeWithGrace(date, time, graceMinutes) {
+    if (!date || !time || !graceMinutes) return this.formatDateTime(date, time)
+    const dateTime = new Date(`${date}T${time}`)
+    const withGrace = new Date(dateTime.getTime() + graceMinutes * 60 * 1000)
+    return withGrace.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  },
+
+  getExpiryStatus(date, time) {
+    if (!date || !time) return ''
+    const endDateTime = new Date(`${date}T${time}`)
+    const now = new Date()
+    
+    if (endDateTime < now) {
+      return 'Would be expired'
+    } else {
+      const hoursUntil = Math.round((endDateTime - now) / (1000 * 60 * 60))
+      return `Will expire in ${hoursUntil} hours`
+    }
+  },
+    
+  showMessage(message, type = 'success') {
+    this.message = message
+    this.messageType = type
+    setTimeout(() => { this.message = '' }, 5000)
+  },
 
     async saveQuiz() {
       try {
         this.saving = true
+        console.log("inside saveQuiz")
         
         // Enhanced validation for auto-expiry
         if (this.form.auto_expire) {
@@ -450,10 +571,42 @@ export default {
           grace_period: this.form.auto_expire ? this.form.grace_period : 0
         }
         
-        // ... rest of save logic
+        const token = localStorage.getItem('access_token')
+        let response
+
+        if (this.editingQuiz) {
+          response = await fetch(`/api/admin/quizzes/${this.editingQuiz.id}`, {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+          })
+        } else {
+          response = await fetch('/api/admin/quizzes', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+          })
+        }
+        
+        if (response.ok) {
+          const result = await response.json()
+          this.showMessage(result.message, 'success')
+          this.closeModal()
+          this.loadQuizzes()
+        } else {
+          const error = await response.json()
+          this.showMessage(error.error || 'Error saving quiz', 'error')
+        }
         
       } catch (error) {
-        // ... error handling
+        console.error('Error saving quiz:', error)
+        this.showMessage('Error saving quiz', 'error')
       } finally {
         this.saving = false
       }
