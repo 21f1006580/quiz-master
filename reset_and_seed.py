@@ -70,20 +70,20 @@ def reset_and_seed():
         # Create quizzes
         now = datetime.utcnow()
         quizzes = [
-            # Mathematics quizzes (Scheduled)
-            Quiz(title="Algebra Basics", chapter_id=1, date_of_quiz=now + timedelta(days=1), time_duration=30, remarks="Basic algebraic concepts", is_anytime_quiz=False),
-            Quiz(title="Calculus Fundamentals", chapter_id=2, date_of_quiz=now + timedelta(days=2), time_duration=45, remarks="Introduction to calculus", is_anytime_quiz=False),
-            Quiz(title="Statistics Quiz", chapter_id=3, date_of_quiz=now + timedelta(days=3), time_duration=40, remarks="Probability and statistics", is_anytime_quiz=False),
+            # Mathematics quizzes (Scheduled) - Available immediately for testing
+            Quiz(title="Algebra Basics", chapter_id=1, date_of_quiz=now - timedelta(hours=1), time_duration=30, remarks="Basic algebraic concepts", is_anytime_quiz=False),
+            Quiz(title="Calculus Fundamentals", chapter_id=2, date_of_quiz=now + timedelta(days=1), time_duration=45, remarks="Introduction to calculus", is_anytime_quiz=False),
+            Quiz(title="Statistics Quiz", chapter_id=3, date_of_quiz=now + timedelta(days=2), time_duration=40, remarks="Probability and statistics", is_anytime_quiz=False),
             
             # Mathematics quizzes (Anytime)
             Quiz(title="Algebra Practice", chapter_id=1, date_of_quiz=now, time_duration=20, remarks="Practice algebra anytime", is_anytime_quiz=True),
             Quiz(title="Calculus Practice", chapter_id=2, date_of_quiz=now, time_duration=25, remarks="Practice calculus concepts", is_anytime_quiz=True),
             Quiz(title="Statistics Practice", chapter_id=3, date_of_quiz=now, time_duration=30, remarks="Practice statistics anytime", is_anytime_quiz=True),
             
-            # Physics quizzes (Scheduled)
-            Quiz(title="Mechanics Test", chapter_id=4, date_of_quiz=now + timedelta(days=1), time_duration=35, remarks="Newton's laws and energy", is_anytime_quiz=False),
-            Quiz(title="Thermodynamics Quiz", chapter_id=5, date_of_quiz=now + timedelta(days=2), time_duration=30, remarks="Heat and energy transfer", is_anytime_quiz=False),
-            Quiz(title="Electromagnetism", chapter_id=6, date_of_quiz=now + timedelta(days=3), time_duration=50, remarks="Electric and magnetic fields", is_anytime_quiz=False),
+            # Physics quizzes (Scheduled) - Available immediately for testing
+            Quiz(title="Mechanics Test", chapter_id=4, date_of_quiz=now - timedelta(hours=1), time_duration=35, remarks="Newton's laws and energy", is_anytime_quiz=False),
+            Quiz(title="Thermodynamics Quiz", chapter_id=5, date_of_quiz=now + timedelta(days=1), time_duration=30, remarks="Heat and energy transfer", is_anytime_quiz=False),
+            Quiz(title="Electromagnetism", chapter_id=6, date_of_quiz=now + timedelta(days=2), time_duration=50, remarks="Electric and magnetic fields", is_anytime_quiz=False),
             
             # Physics quizzes (Anytime)
             Quiz(title="Mechanics Practice", chapter_id=4, date_of_quiz=now, time_duration=20, remarks="Practice mechanics anytime", is_anytime_quiz=True),
