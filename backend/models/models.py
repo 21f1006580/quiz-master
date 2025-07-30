@@ -2,7 +2,8 @@
 
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime,timedelta
+from datetime import datetime,timedelta,timezone
+ 
 
 db = SQLAlchemy()
 
@@ -162,8 +163,12 @@ class Quiz(db.Model):
         effective_end = self.get_effective_end_time()
         if not effective_end:
             return False
-            
-        return datetime.utcnow() > effective_end
+        
+        # Normalize times for comparison
+        current_time = self._get_current_time()
+        normalized_end = self._normalize_datetime(effective_end)
+        
+        return current_time > normalized_end
 
     def should_auto_lock(self):
         """Check if quiz should be automatically locked"""
@@ -171,21 +176,19 @@ class Quiz(db.Model):
 
     def get_status(self):
         """Get current quiz status with auto-expiry logic"""
-        from datetime import timezone
-        
-        now = datetime.now(timezone.utc)  # Use timezone-aware datetime
-        
         # Check if manually deactivated
         if not self.is_active:
             return 'inactive'
         
-        # Convert quiz start time to UTC if naive
-        quiz_start = self.date_of_quiz
-        if quiz_start.tzinfo is None:
-            quiz_start = quiz_start.replace(tzinfo=timezone.utc)
+        current_time = self._get_current_time()
+        normalized_start = self._normalize_datetime(self.date_of_quiz)
+        
+        print(f"🕐 Status check:")
+        print(f"   Current time (UTC): {current_time}")
+        print(f"   Quiz start time (normalized): {normalized_start}")
         
         # Check if quiz hasn't started yet
-        if now < quiz_start:
+        if current_time < normalized_start:
             return 'upcoming'
         
         # Check if quiz has expired
@@ -195,9 +198,8 @@ class Quiz(db.Model):
         # Check if quiz is ending soon (within 30 minutes)
         effective_end = self.get_effective_end_time()
         if effective_end:
-            if effective_end.tzinfo is None:
-                effective_end = effective_end.replace(tzinfo=timezone.utc)
-            time_to_end = (effective_end - now).total_seconds() / 60
+            normalized_end = self._normalize_datetime(effective_end)
+            time_to_end = (normalized_end - current_time).total_seconds() / 60
             if 0 < time_to_end <= 30:
                 return 'ending_soon'
         
@@ -211,10 +213,27 @@ class Quiz(db.Model):
             return True
         return False
 
+    def _normalize_datetime(self, dt):
+        """Keep everything as naive datetime for consistent comparison"""
+        if dt is None:
+            return None
+        
+        # If datetime has timezone info, convert to naive local time
+        if dt.tzinfo is not None:
+            # Convert to local time and remove timezone info
+            local_dt = dt.astimezone()
+            return local_dt.replace(tzinfo=None)
+        
+        # If already naive (no timezone), return as-is
+        return dt
+    
+    def _get_current_time(self):
+        """Get current time in server's timezone (naive datetime)"""
+        return datetime.now()
+
+
     def is_available_for_attempt(self, user_id=None):
         """Check if quiz is available for attempts (with auto-expiry check)"""
-        from datetime import timezone
-        
         # Auto-lock if expired
         was_locked = self.auto_lock_if_expired()
         if was_locked:
@@ -224,23 +243,20 @@ class Quiz(db.Model):
         if not self.is_active:
             return False, "Quiz is not active"
         
-        # Use timezone-aware datetime comparison
-        now = datetime.now(timezone.utc)  # UTC timezone-aware datetime
+        # Get current time and normalize quiz start time
+        current_time = self._get_current_time()
+        normalized_start = self._normalize_datetime(self.date_of_quiz)
         
-        # Convert quiz start time to UTC if it's naive
-        quiz_start = self.date_of_quiz
-        if quiz_start.tzinfo is None:
-            # Assume the quiz start time is in UTC if no timezone info
-            quiz_start = quiz_start.replace(tzinfo=timezone.utc)
+        print(f"🕐 Availability check:")
+        print(f"   Current time (UTC): {current_time}")
+        print(f"   Quiz start time (normalized): {normalized_start}")
+        print(f"   Time difference: {(normalized_start - current_time).total_seconds()} seconds")
         
-        print(f"🕐 Time comparison:")
-        print(f"   Current time (UTC): {now}")
-        print(f"   Quiz start time: {quiz_start}")
-        print(f"   Difference: {(quiz_start - now).total_seconds()} seconds")
+        # Check if quiz has started - with a small buffer (5 minutes early access)
+        time_diff_minutes = (normalized_start - current_time).total_seconds() / 60
         
-        # Check if quiz has started
-        if now < quiz_start:
-            return False, f"Quiz has not started yet. Starts at {quiz_start.strftime('%Y-%m-%d %H:%M:%S UTC')}"
+        if time_diff_minutes > 5:  # More than 5 minutes before start
+            return False, f"Quiz has not started yet. Starts at {normalized_start.strftime('%Y-%m-%d %H:%M:%S UTC')}"
         
         # Check if quiz has expired
         if self.is_expired():
@@ -263,12 +279,14 @@ class Quiz(db.Model):
         effective_end = self.get_effective_end_time()
         if not effective_end:
             return None
-            
-        now = datetime.utcnow()
-        if now > effective_end:
+        
+        current_time = self._get_current_time()
+        normalized_end = self._normalize_datetime(effective_end)
+        
+        if current_time > normalized_end:
             return 0
             
-        diff = effective_end - now
+        diff = normalized_end - current_time
         return int(diff.total_seconds() / 60)
 
     def to_dict(self):
