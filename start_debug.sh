@@ -1,7 +1,7 @@
 #!/bin/bash
-# Quiz Master Startup Script for Mac/Linux
+# Quiz Master Debug Startup Script for Mac/Linux
 
-echo "🚀 Starting Quiz Master Application..."
+echo "🚀 Starting Quiz Master Application (Debug Mode)..."
 
 # Check for required tools
 if ! command -v python3 &> /dev/null; then
@@ -51,6 +51,9 @@ source venv/bin/activate
 python3 -m pip install --upgrade pip
 pip install -r requirements.txt
 
+# Install requests for debugging
+pip install requests
+
 # Seed database if it doesn't exist
 if [ ! -f "quizmaster.db" ]; then
     echo "🌱 Seeding database with sample data..."
@@ -61,6 +64,7 @@ fi
 export FLASK_APP=app.py
 export FLASK_ENV=development
 export PYTHONPATH=$(pwd)
+export FLASK_DEBUG=1
 
 # Start Flask backend in background
 echo "🐍 Starting Flask backend..."
@@ -69,7 +73,16 @@ python3 app.py &
 BACKEND_PID=$!
 
 # Wait a moment for backend to start
-sleep 5
+echo "⏳ Waiting for backend to start..."
+sleep 8
+
+# Test backend health
+echo "🔍 Testing backend health..."
+if curl -s http://localhost:5001/health > /dev/null 2>&1; then
+    echo "✅ Backend is responding"
+else
+    echo "⚠️  Backend might not be ready yet, continuing..."
+fi
 
 # Start Celery worker if Redis is available
 if [ "$REDIS_AVAILABLE" = true ]; then
@@ -109,6 +122,8 @@ else
 fi
 echo "👤 Admin Login: admin@gmail.com / admin123"
 echo ""
+echo "🔍 To debug JWT issues, run: python3 debug_jwt.py"
+echo ""
 echo "Press Ctrl+C to stop all servers"
 
 cleanup() {
@@ -129,4 +144,4 @@ cleanup() {
 trap cleanup SIGINT SIGTERM
 
 # Wait for all background processes
-wait
+wait 

@@ -1,7 +1,7 @@
 @echo off
-REM Quiz Master Startup Script for Windows
+REM Quiz Master Debug Startup Script for Windows
 
-echo 🚀 Starting Quiz Master Application...
+echo 🚀 Starting Quiz Master Application (Debug Mode)...
 
 REM Check for required tools
 python --version >nul 2>&1
@@ -51,6 +51,9 @@ call venv\Scripts\activate.bat
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 
+REM Install requests for debugging
+pip install requests
+
 REM Seed database if it doesn't exist
 if not exist "quizmaster.db" (
     echo 🌱 Seeding database with sample data...
@@ -61,6 +64,7 @@ REM Set environment variables
 set FLASK_APP=app.py
 set FLASK_ENV=development
 set PYTHONPATH=%CD%
+set FLASK_DEBUG=1
 
 REM Start Flask backend in background
 echo 🐍 Starting Flask backend...
@@ -69,7 +73,17 @@ start /B python app.py
 set BACKEND_PID=%ERRORLEVEL%
 
 REM Wait a moment for backend to start
-timeout /t 5 /nobreak >nul
+echo ⏳ Waiting for backend to start...
+timeout /t 8 /nobreak >nul
+
+REM Test backend health
+echo 🔍 Testing backend health...
+curl -s http://localhost:5001/health >nul 2>&1
+if errorlevel 1 (
+    echo ⚠️  Backend might not be ready yet, continuing...
+) else (
+    echo ✅ Backend is responding
+)
 
 REM Start Celery worker if Redis is available
 if "%REDIS_AVAILABLE%"=="true" (
@@ -109,7 +123,9 @@ if "%REDIS_AVAILABLE%"=="true" (
 )
 echo 👤 Admin Login: admin@gmail.com / admin123
 echo.
+echo 🔍 To debug JWT issues, run: python debug_jwt.py
+echo.
 echo Press Ctrl+C to stop all servers
 
 REM Wait for user input
-pause
+pause 

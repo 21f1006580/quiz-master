@@ -29,6 +29,9 @@ def user_required(f):
     def decorated_function(*args, **kwargs):
         try:
             current_user = get_jwt_identity()
+            if not current_user:
+                return jsonify({'error': 'Invalid token'}), 401
+                
             user = User.query.filter_by(user_name=current_user).first()
             
             if not user:
@@ -44,6 +47,8 @@ def get_current_user():
     """Helper function to get current user object"""
     try:
         current_user = get_jwt_identity()
+        if not current_user:
+            return None
         return User.query.filter_by(user_name=current_user).first()
     except:
         return None
