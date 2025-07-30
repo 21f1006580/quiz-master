@@ -276,62 +276,105 @@ def get_quizzes(chapter_id):
         'chapter': chapter.to_dict(),
         'quizzes': [quiz.to_dict() for quiz in quizzes]
     })
-
 @admin_bp.route('/quizzes', methods=['POST'])
 @admin_required
 def create_quiz():
-    """Create a new quiz"""
-    data = request.get_json()
-    
-    required_fields = ['title', 'chapter_id', 'date_of_quiz', 'time_duration']
-    for field in required_fields:
-        if not data.get(field):
-            return jsonify({'error': f'{field} is required'}), 400
-    
-    # Verify chapter exists
-    chapter = Chapter.query.get(data['chapter_id'])
-    if not chapter:
-        return jsonify({'error': 'Chapter not found'}), 404
-    
+    """Create a new quiz with scheduling"""
     try:
-        # Parse date string to datetime
-        quiz_date = datetime.fromisoformat(data['date_of_quiz'].replace('Z', '+00:00'))
+        data = request.get_json()
         
+        # Validation
+        required_fields = ['title', 'chapter_id', 'start_date', 'start_time', 'time_duration']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'error': f'{field} is required'}), 400
+        
+        # Verify chapter exists
+        chapter = Chapter.query.get(data['chapter_id'])
+        if not chapter:
+            return jsonify({'error': 'Chapter not found'}), 404
+        
+        # Parse start datetime
+        start_datetime_str = f"{data['start_date']} {data['start_time']}"
+        start_datetime = datetime.strptime(start_datetime_str, '%Y-%m-%d %H:%M')
+        
+        # Validate start time is in future
+        if start_datetime <= datetime.now():
+            return jsonify({'error': 'Quiz start time must be in the future'}), 400
+        
+        # Create quiz
         quiz = Quiz(
             title=data['title'],
             chapter_id=data['chapter_id'],
-            date_of_quiz=quiz_date,
-            time_duration=data['time_duration'],
+            date_of_quiz=start_datetime,
+            time_duration=int(data['time_duration']),
             remarks=data.get('remarks', ''),
-            is_active=True      
+            is_active=data.get('is_active', True)
         )
+        
+        # Set optional fields if they exist in model
+        if hasattr(quiz, 'allow_multiple_attempts'):
+            quiz.allow_multiple_attempts = data.get('allow_multiple_attempts', False)
+        if hasattr(quiz, 'show_results_immediately'):
+            quiz.show_results_immediately = data.get('show_results_immediately', True)
         
         db.session.add(quiz)
         db.session.commit()
-        return jsonify({'message': 'Quiz created successfully', 'quiz': quiz.to_dict()}), 201
+        
+        return jsonify({
+            'message': 'Quiz created successfully',
+            'quiz': quiz.to_dict()
+        }), 201
+        
+    except ValueError as e:
+        return jsonify({'error': 'Invalid date/time format'}), 400
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+
 @admin_bp.route('/quizzes/<int:quiz_id>', methods=['PUT'])
 @admin_required
 def update_quiz(quiz_id):
-    """Update a quiz"""
-    quiz = Quiz.query.get_or_404(quiz_id)
-    data = request.get_json()
-    
+    """Update quiz"""
     try:
+        quiz = Quiz.query.get_or_404(quiz_id)
+        data = request.get_json()
+        
+        # Update basic fields
         if data.get('title'):
             quiz.title = data['title']
-        if data.get('date_of_quiz'):
-            quiz.date_of_quiz = datetime.fromisoformat(data['date_of_quiz'].replace('Z', '+00:00'))
-        if data.get('time_duration'):
-            quiz.time_duration = data['time_duration']
         if 'remarks' in data:
             quiz.remarks = data['remarks']
+        if 'is_active' in data:
+            quiz.is_active = data['is_active']
         
+        # Update start datetime if provided
+        if data.get('start_date') and data.get('start_time'):
+            start_datetime_str = f"{data['start_date']} {data['start_time']}"
+            start_datetime = datetime.strptime(start_datetime_str, '%Y-%m-%d %H:%M')
+            quiz.date_of_quiz = start_datetime
+        
+        # Update duration
+        if data.get('time_duration'):
+            quiz.time_duration = int(data['time_duration'])
+        
+        # Update optional fields
+        if hasattr(quiz, 'allow_multiple_attempts') and 'allow_multiple_attempts' in data:
+            quiz.allow_multiple_attempts = data['allow_multiple_attempts']
+        if hasattr(quiz, 'show_results_immediately') and 'show_results_immediately' in data:
+            quiz.show_results_immediately = data['show_results_immediately']
+        
+        quiz.updated_at = datetime.utcnow()
         db.session.commit()
-        return jsonify({'message': 'Quiz updated successfully', 'quiz': quiz.to_dict()})
+        
+        return jsonify({
+            'message': 'Quiz updated successfully',
+            'quiz': quiz.to_dict()
+        })
+        
+    except ValueError as e:
+        return jsonify({'error': 'Invalid date/time format'}), 400
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
@@ -383,6 +426,73 @@ def get_questions_by_chapter(chapter_id):
         'quizzes': [quiz.to_dict() for quiz in quizzes]  # Include available quizzes
     })
 
+
+# Enhanced user routes for quiz availability checking
+@admin_bp.route('/quiz/<int:quiz_id>/take', methods=['GET'])
+@jwt_required()
+def start_quiz(quiz_id):
+    """Start a quiz with scheduling validation"""
+    try:
+        print(f"=== QUIZ ACCESS CHECK ===")
+        print(f"Quiz ID: {quiz_id}")
+        
+        user_name = get_jwt_identity()
+        user = User.query.filter_by(user_name=user_name).first()
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        quiz = Quiz.query.get(quiz_id)
+        if not quiz:
+            return jsonify({'error': 'Quiz not found'}), 404
+        
+        print(f"Quiz: {quiz.title}")
+        print(f"Quiz status: {quiz.get_status()}")
+        print(f"Is available: {quiz.is_available_now()}")
+        
+        # Check if quiz is available
+        can_attempt, message = quiz.can_user_attempt(user.user_id)
+        if not can_attempt:
+            return jsonify({'error': message}), 403
+        
+        # Get questions
+        questions = Question.query.filter_by(quiz_id=quiz_id).all()
+        if not questions:
+            return jsonify({'error': 'No questions available for this quiz'}), 404
+
+        question_data = []
+        for q in questions:
+            options = [q.option1, q.option2]
+            if q.option3:
+                options.append(q.option3)
+            if q.option4:
+                options.append(q.option4)
+                
+            question_data.append({
+                'id': q.question_id,
+                'statement': q.question_statement,
+                'options': options
+            })
+
+        response_data = {
+            'quiz_id': quiz.quiz_id,
+            'title': quiz.title,
+            'duration': quiz.time_duration,
+            'total_questions': len(questions),
+            'questions': question_data,
+            'chapter_name': quiz.chapter.name if quiz.chapter else None,
+            'subject_name': quiz.chapter.subject.name if quiz.chapter and quiz.chapter.subject else None,
+            'time_remaining': quiz.get_time_remaining(),
+            'show_results_immediately': quiz.show_results_immediately
+        }
+        
+        return jsonify(response_data), 200
+        
+    except Exception as e:
+        print(f"EXCEPTION in start_quiz: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    
 @admin_bp.route('/quizzes/<int:quiz_id>/questions', methods=['GET'])
 @admin_required
 def get_questions(quiz_id):
@@ -571,6 +681,48 @@ def get_all_questions_by_subject(subject_id):
         'total_questions': len(questions_with_context)
     })
 
+
+@admin_bp.route('/quizzes/status-check', methods=['POST'])
+@admin_required
+def bulk_quiz_status_update():
+    """Automatically update quiz statuses based on current time"""
+    try:
+        now = datetime.utcnow()
+        updated_count = 0
+        
+        # Auto-activate quizzes that should start
+        quizzes_to_activate = Quiz.query.filter(
+            Quiz.auto_start == True,
+            Quiz.is_active == False,
+            Quiz.date_of_quiz <= now
+        ).all()
+        
+        for quiz in quizzes_to_activate:
+            quiz.is_active = True
+            updated_count += 1
+        
+        # Auto-deactivate expired quizzes
+        quizzes_to_expire = Quiz.query.filter(
+            Quiz.auto_end == True,
+            Quiz.is_active == True,
+            Quiz.end_date_time <= now
+        ).all()
+        
+        for quiz in quizzes_to_expire:
+            quiz.is_active = False
+            updated_count += 1
+        
+        if updated_count > 0:
+            db.session.commit()
+        
+        return jsonify({
+            'message': f'Updated {updated_count} quiz statuses',
+            'updated_count': updated_count
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 # ============= USERS MANAGEMENT =============
 
 @admin_bp.route('/users', methods=['GET'])

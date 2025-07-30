@@ -1,3 +1,5 @@
+# backend/models/models.py - FIXED VERSION
+
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
@@ -109,35 +111,122 @@ class Chapter(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
 
+# FIXED Quiz model - corrected foreign key reference
 class Quiz(db.Model):
-    __tablename__ = 'quizzes'
-
+    __tablename__ = 'quizzes'  # CHANGED: Use consistent table name
+    
     quiz_id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(100), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    # FIXED: Reference the correct table name
     chapter_id = db.Column(db.Integer, db.ForeignKey('chapters.chapter_id'), nullable=False)
-    date_of_quiz = db.Column(db.DateTime, nullable=False)
+    
+    # ENHANCED SCHEDULING FIELDS
+    date_of_quiz = db.Column(db.DateTime, nullable=False)  # Quiz start time
+    end_date_time = db.Column(db.DateTime, nullable=True)  # Quiz end time (optional)
     time_duration = db.Column(db.Integer, nullable=False)  # Duration in minutes
-    remarks = db.Column(db.Text, nullable=True)
+    
+    # NEW SCHEDULING FIELDS
     is_active = db.Column(db.Boolean, default=True)
+    allow_multiple_attempts = db.Column(db.Boolean, default=False)
+    show_results_immediately = db.Column(db.Boolean, default=True)
+    auto_start = db.Column(db.Boolean, default=True)  # Auto available at start time
+    auto_end = db.Column(db.Boolean, default=True)    # Auto lock at end time
+    
+    remarks = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    scores = db.relationship('Score', backref='quiz', lazy=True, cascade="all, delete-orphan")
-    questions = db.relationship('Question', backref='quiz', lazy=True, cascade="all, delete-orphan")
+    
+    # Relationships - FIXED: No need to redefine backref since it's defined in Chapter
+    questions = db.relationship('Question', backref='quiz', lazy=True, cascade='all, delete-orphan')
+    scores = db.relationship('Score', backref='quiz', lazy=True)
 
     def to_dict(self):
         return {
             'id': self.quiz_id,
+            'quiz_id': self.quiz_id,
             'title': self.title,
             'chapter_id': self.chapter_id,
             'date_of_quiz': self.date_of_quiz.isoformat() if self.date_of_quiz else None,
+            'end_date_time': self.end_date_time.isoformat() if self.end_date_time else None,
             'time_duration': self.time_duration,
-            'remarks': self.remarks,
             'is_active': self.is_active,
+            'allow_multiple_attempts': self.allow_multiple_attempts,
+            'show_results_immediately': self.show_results_immediately,
+            'auto_start': self.auto_start,
+            'auto_end': self.auto_end,
+            'remarks': self.remarks,
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'question_count': len(self.questions) if self.questions else 0,
+            'status': self.get_status(),
+            'is_available': self.is_available_now(),
+            'time_remaining': self.get_time_remaining()
         }
-
+    
+    def get_status(self):
+        """Get current quiz status"""
+        now = datetime.utcnow()
+        
+        if not self.is_active:
+            return 'inactive'
+        
+        if now < self.date_of_quiz:
+            return 'upcoming'
+        
+        # Check if quiz has ended
+        if self.end_date_time and now > self.end_date_time:
+            return 'expired'
+        elif not self.end_date_time:
+            # If no end time set, quiz is always available once started
+            return 'active'
+        else:
+            return 'active'
+    
+    def is_available_now(self):
+        """Check if quiz is currently available for attempts"""
+        if not self.is_active:
+            return False
+            
+        now = datetime.utcnow()
+        
+        # Check if quiz has started
+        if now < self.date_of_quiz:
+            return False
+        
+        # Check if quiz has ended
+        if self.end_date_time and now > self.end_date_time:
+            return False
+            
+        return True
+    
+    def get_time_remaining(self):
+        """Get time remaining until quiz ends (in minutes)"""
+        if not self.end_date_time:
+            return None
+            
+        now = datetime.utcnow()
+        if now > self.end_date_time:
+            return 0
+            
+        diff = self.end_date_time - now
+        return int(diff.total_seconds() / 60)
+    
+    def can_user_attempt(self, user_id):
+        """Check if a specific user can attempt this quiz"""
+        if not self.is_available_now():
+            return False, "Quiz is not currently available"
+        
+        # Check if user has already attempted
+        if not self.allow_multiple_attempts:
+            existing_attempt = Score.query.filter_by(
+                quiz_id=self.quiz_id, 
+                user_id=user_id
+            ).first()
+            
+            if existing_attempt:
+                return False, "You have already attempted this quiz"
+        
+        return True, "Quiz is available"
 
 
 class Question(db.Model):
@@ -180,5 +269,17 @@ class Score(db.Model):
     time_taken = db.Column(db.Integer, nullable=True)  # Time taken in seconds
     attempt_datetime = db.Column(db.DateTime, default=datetime.utcnow)
     
-    # Ensure one attempt per user per quiz
+    # Ensure one attempt per user per quiz (unless multiple attempts allowed)
     __table_args__ = (db.UniqueConstraint('user_id', 'quiz_id', name='unique_user_quiz_attempt'),)
+
+    def to_dict(self):
+        return {
+            'id': self.score_id,
+            'quiz_id': self.quiz_id,
+            'user_id': self.user_id,
+            'total_questions': self.total_questions,
+            'correct_answers': self.correct_answers,
+            'total_score': self.total_score,
+            'time_taken': self.time_taken,
+            'attempt_datetime': self.attempt_datetime.isoformat() if self.attempt_datetime else None
+        }

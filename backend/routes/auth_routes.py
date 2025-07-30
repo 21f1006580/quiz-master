@@ -5,7 +5,7 @@ from backend.models.models import db, User
 from datetime import datetime, timedelta
 from sqlalchemy.exc import IntegrityError
 
-auth_bp = Blueprint('auth', __name__,url_prefix='api/auth')
+auth_bp = Blueprint('auth', __name__,url_prefix='/api/auth')
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
