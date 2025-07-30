@@ -66,23 +66,23 @@
         </div>
         
         <div class="question-content">
-          <p class="question-text">{{ currentQuestion.statement }}</p>
+          <p class="question-text">{{ currentQuestion ? currentQuestion.statement : 'Loading question...' }}</p>
           
           <div class="options-list">
             <label 
-              v-for="(option, index) in currentQuestion.options" 
+              v-for="(option, index) in (currentQuestion ? currentQuestion.options : [])" 
               :key="index"
               :class="[
                 'option-item', 
-                { 'selected': selectedAnswers[currentQuestion.id] === index + 1 },
+                { 'selected': selectedAnswers[currentQuestion ? currentQuestion.id : 0] === index + 1 },
                 getOptionClass(index)
               ]"
             >
               <input 
                 type="radio" 
-                :name="'question-' + currentQuestion.id"
+                :name="'question-' + (currentQuestion ? currentQuestion.id : 0)"
                 :value="index + 1"
-                v-model="selectedAnswers[currentQuestion.id]"
+                v-model="selectedAnswers[currentQuestion ? currentQuestion.id : 0]"
                 @change="saveAnswer"
                 :disabled="currentQuestionFeedback && timerMode === 'question'"
               />
@@ -289,7 +289,7 @@ export default {
     },
 
     currentQuestion() {
-      if (this.questions.length === 0 || this.currentQuestionIndex >= this.questions.length) {
+      if (!this.questions || this.questions.length === 0 || this.currentQuestionIndex >= this.questions.length) {
         return null
       }
       return this.questions[this.currentQuestionIndex]
@@ -353,17 +353,27 @@ export default {
           const data = response.data
           console.log("Quiz data with expiry info:", data)
           
+          // Ensure we have valid quiz data
+          if (!data || !data.quiz_id) {
+            throw new Error('Invalid quiz data received')
+          }
+          
           this.quizDetails = {
             id: data.quiz_id,
-            title: data.title,
-            duration: data.duration,
-            totalQuestions: data.total_questions,
-            chapterName: data.chapter_name,
-            subjectName: data.subject_name
+            title: data.title || 'Untitled Quiz',
+            duration: data.duration || 30,
+            totalQuestions: data.total_questions || 0,
+            chapterName: data.chapter_name || 'Unknown Chapter',
+            subjectName: data.subject_name || 'Unknown Subject'
           }
           
           this.questions = data.questions || []
           this.totalQuestions = this.questions.length
+          
+          // Ensure we have at least one question
+          if (this.questions.length === 0) {
+            throw new Error('No questions available for this quiz')
+          }
           
           // Set up auto-expiry monitoring
           this.autoExpireEnabled = data.auto_expire_enabled
