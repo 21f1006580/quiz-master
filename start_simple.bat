@@ -20,6 +20,24 @@ if errorlevel 1 (
     exit /b 1
 )
 
+REM Check if Redis is available (optional for background tasks)
+where redis-cli >nul 2>&1
+if errorlevel 1 (
+    echo ⚠️  Redis not found. Background tasks will be disabled.
+    echo To enable background tasks, install Redis from https://redis.io
+    set REDIS_AVAILABLE=false
+) else (
+    redis-cli ping >nul 2>&1
+    if errorlevel 1 (
+        echo ⚠️  Redis is installed but not running. Background tasks will be disabled.
+        echo To enable background tasks, start Redis server
+        set REDIS_AVAILABLE=false
+    ) else (
+        echo ✅ Redis is running
+        set REDIS_AVAILABLE=true
+    )
+)
+
 REM Check if virtual environment exists
 if not exist "venv" (
     echo 📦 Creating virtual environment...

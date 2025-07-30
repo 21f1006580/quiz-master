@@ -61,14 +61,23 @@ try {
 
 # Check if Redis is available (optional for background tasks)
 try {
-    $redisTest = redis-cli ping 2>&1
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "✅ Redis is running" -ForegroundColor Green
-        $REDIS_AVAILABLE = $true
-    } else {
+    # First check if redis-cli command exists
+    $redisExists = Get-Command redis-cli -ErrorAction SilentlyContinue
+    if (-not $redisExists) {
         Write-Host "⚠️  Redis not found. Background tasks will be disabled." -ForegroundColor Yellow
         Write-Host "To enable background tasks, install Redis from https://redis.io" -ForegroundColor Yellow
         $REDIS_AVAILABLE = $false
+    } else {
+        # Check if Redis server is running
+        $redisTest = redis-cli ping 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "✅ Redis is running" -ForegroundColor Green
+            $REDIS_AVAILABLE = $true
+        } else {
+            Write-Host "⚠️  Redis is installed but not running. Background tasks will be disabled." -ForegroundColor Yellow
+            Write-Host "To enable background tasks, start Redis server" -ForegroundColor Yellow
+            $REDIS_AVAILABLE = $false
+        }
     }
 } catch {
     Write-Host "⚠️  Redis not found. Background tasks will be disabled." -ForegroundColor Yellow

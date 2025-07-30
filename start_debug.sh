@@ -34,7 +34,8 @@ else
         echo "✅ Redis is running"
         REDIS_AVAILABLE=true
     else
-        echo "⚠️  Redis is not running. Starting without background tasks..."
+        echo "⚠️  Redis is installed but not running. Starting without background tasks..."
+        echo "To start Redis: brew services start redis (Mac) or sudo systemctl start redis (Ubuntu)"
         REDIS_AVAILABLE=false
     fi
 fi
