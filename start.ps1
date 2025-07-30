@@ -176,7 +176,7 @@ Register-EngineEvent PowerShell.Exiting -Action { Cleanup-Processes }
 
 # Wait for user input
 Write-Host "Press any key to stop all servers..." -ForegroundColor Yellow
-$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+$null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
 
 # Cleanup on exit
 Cleanup-Processes 

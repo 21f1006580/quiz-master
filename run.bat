@@ -11,16 +11,18 @@ echo 1. PowerShell (Recommended)
 echo 2. Command Prompt (Batch)
 echo 3. Debug Mode (PowerShell)
 echo 4. Debug Mode (Command Prompt)
-echo 5. Exit
+echo 5. Simple Mode (No waiting)
+echo 6. Exit
 echo.
 
-set /p choice="Enter your choice (1-5): "
+set /p choice="Enter your choice (1-6): "
 
 if "%choice%"=="1" goto powershell
 if "%choice%"=="2" goto batch
 if "%choice%"=="3" goto debug_powershell
 if "%choice%"=="4" goto debug_batch
-if "%choice%"=="5" goto exit
+if "%choice%"=="5" goto simple
+if "%choice%"=="6" goto exit
 goto invalid
 
 :powershell
@@ -91,9 +93,16 @@ if not exist "start_debug.bat" (
 call start_debug.bat
 goto end
 
+:simple
+echo.
+echo Starting Simple Mode...
+echo.
+call start_simple.bat
+goto end
+
 :invalid
 echo.
-echo Invalid choice. Please enter 1-5.
+echo Invalid choice. Please enter 1-6.
 echo.
 pause
 goto end

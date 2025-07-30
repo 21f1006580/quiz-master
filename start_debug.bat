@@ -107,7 +107,7 @@ if not exist "node_modules" (
 
 REM Start Vue frontend
 echo ⚡ Starting Vue frontend...
-npm run serve
+start /B npm run serve
 set FRONTEND_PID=%ERRORLEVEL%
 
 echo ✅ Quiz Master is starting up!
