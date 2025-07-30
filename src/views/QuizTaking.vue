@@ -118,7 +118,7 @@
             </button>
             
             <button 
-              @click="submitAnswers" 
+              @click="showConfirmModal" 
               :disabled="submitting"
               class="btn-primary submit-btn"
             >
@@ -248,6 +248,7 @@ export default {
       // Timer management
       questionTimeLeft: 30,
       questionTimer: null,
+      timerMode: 'quiz', // 'quiz' or 'question'
       
       // Auto-expiry monitoring
       quizExpiryTime: null,
@@ -256,8 +257,14 @@ export default {
       showExpiryWarning: false,
       autoExpireEnabled: false,
       
+      // Quiz progress and feedback
+      progressPercentage: 0,
+      showInstantFeedback: false,
+      currentQuestionFeedback: null,
+      
       // Submission state
       submitting: false,
+      showConfirmModal: false,
       
       error: null
     }
@@ -279,6 +286,33 @@ export default {
 
     shouldShowExpiryWarning() {
       return this.autoExpireEnabled && this.timeUntilExpiry && this.timeUntilExpiry <= 10
+    },
+
+    currentQuestion() {
+      if (this.questions.length === 0 || this.currentQuestionIndex >= this.questions.length) {
+        return null
+      }
+      return this.questions[this.currentQuestionIndex]
+    },
+
+    progressPercentage() {
+      if (this.questions.length === 0) return 0
+      return ((this.currentQuestionIndex + 1) / this.questions.length) * 100
+    },
+
+    answeredCount() {
+      return Object.keys(this.selectedAnswers).length
+    },
+
+    correctAnswersCount() {
+      let count = 0
+      Object.keys(this.selectedAnswers).forEach(questionId => {
+        const question = this.questions.find(q => q.id.toString() === questionId)
+        if (question && this.selectedAnswers[questionId] === 1) { // Assuming correct_option is 1
+          count++
+        }
+      })
+      return count
     }
   },
 
@@ -573,6 +607,38 @@ export default {
       if (this.currentQuestionIndex < this.questions.length - 1) {
         this.currentQuestionIndex++
       }
+    },
+
+    showConfirmModal() {
+      this.showConfirmModal = true
+    },
+
+    closeConfirmModal() {
+      this.showConfirmModal = false
+    },
+
+    confirmSubmit() {
+      this.showConfirmModal = false
+      this.submitAnswers()
+    },
+
+    getOptionClass(index) {
+      if (!this.currentQuestionFeedback) return ''
+      
+      const userAnswer = this.selectedAnswers[this.currentQuestion.id]
+      const correctOption = 1 // Assuming correct_option is 1
+      
+      if (userAnswer === index + 1) {
+        if (userAnswer === correctOption) {
+          return 'option-correct'
+        } else {
+          return 'option-incorrect'
+        }
+      } else if (index + 1 === correctOption) {
+        return 'option-show-correct'
+      }
+      
+      return ''
     },
 
     goToDashboard() {
@@ -998,6 +1064,98 @@ export default {
 .submit-btn:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 15px;
+  padding: 2rem;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header h3 {
+  margin: 0 0 1rem 0;
+  color: #333;
+}
+
+.modal-body p {
+  margin: 0.5rem 0;
+  color: #666;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+  justify-content: flex-end;
+}
+
+.btn-cancel, .btn-confirm {
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+}
+
+.btn-cancel {
+  background: #f8f9fa;
+  color: #666;
+}
+
+.btn-confirm {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+/* Option Feedback Styles */
+.option-correct {
+  background: #d4edda !important;
+  border-color: #c3e6cb !important;
+}
+
+.option-incorrect {
+  background: #f8d7da !important;
+  border-color: #f5c6cb !important;
+}
+
+.option-show-correct {
+  background: #d4edda !important;
+  border-color: #c3e6cb !important;
+}
+
+.feedback-icon {
+  margin-left: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.feedback-icon.correct {
+  color: #28a745;
+}
+
+.feedback-icon.incorrect {
+  color: #dc3545;
+}
+
+.feedback-icon.show-correct {
+  color: #28a745;
 }
 
 /* Responsive Design */
