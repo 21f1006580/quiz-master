@@ -30,8 +30,13 @@ A comprehensive, full-stack quiz application built with **Flask (Python)** backe
 - **Python 3.8+** (Python 3.9+ recommended)
 - **Node.js 16+** (Node.js 18+ recommended)
 - **npm** (included with Node.js)
+- **Python 3.8+** (Python 3.9+ recommended)
+- **Node.js 16+** (Node.js 18+ recommended)
+- **npm** (included with Node.js)
 
 ### One-Command Setup
+
+#### For Mac/Linux:
 
 #### For Mac/Linux:
 ```bash

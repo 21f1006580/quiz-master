@@ -5,6 +5,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from backend.models.models import db, User, Subject, Chapter, Quiz, Question, Score
 from datetime import datetime, timedelta
 from sqlalchemy import func
+import traceback
 
 user_bp = Blueprint('user', __name__, url_prefix='/api/user')
 
@@ -18,10 +19,12 @@ def user_dashboard():
         if not user:
             return jsonify({'error': 'User not found'}), 404
 
+        print("Fetching user dashboard data for:", user.user_name)
+
         # Get active subjects with chapter and quiz counts
         subjects = Subject.query.filter_by(is_active=True).all()
         subject_list = []
-        
+        print("Found subjects:", len(subjects))
         for subj in subjects:
             # Count chapters and available quizzes for this subject
             chapter_count = Chapter.query.filter_by(subject_id=subj.subject_id).count()
@@ -40,10 +43,13 @@ def user_dashboard():
                 'chapter_count': chapter_count,
                 'available_quizzes': available_quizzes
             })
+        print("Subjects processed:", len(subject_list))
 
         return jsonify({'subjects': subject_list}), 200
         
     except Exception as e:
+        print("Error while fetching dashboard data:", str(e))
+        print(f"ERROR traceback: {traceback.format_exc()}")
         return jsonify({'error': str(e)}), 500
 
 @user_bp.route('/profile', methods=['GET'])
@@ -444,6 +450,7 @@ def get_user_scores():
         user = User.query.filter_by(user_name=user_name).first()
         if not user:
             return jsonify({'error': 'User not found'}), 404
+        print(f"Fetching scores for user: {user.user_name} (ID: {user.user_id})")
 
         # Get scores with quiz details
         scores = db.session.query(Score, Quiz, Chapter, Subject).join(
@@ -455,6 +462,8 @@ def get_user_scores():
         ).filter(
             Score.user_id == user.user_id
         ).order_by(Score.attempt_datetime.desc()).all()
+
+        print(f"Found {len(scores)} scores for user {user.user_name}")
 
         result = []
         for score, quiz, chapter, subject in scores:
@@ -471,9 +480,12 @@ def get_user_scores():
                 'attempted_on': score.attempt_datetime.isoformat()
             })
 
+        print("Scores fetched successfully")
+
         return jsonify({'scores': result}), 200
         
     except Exception as e:
+        print(f"Error while getting scores {e}")
         return jsonify({'error': str(e)}), 500
 
 @user_bp.route('/quiz-summary/<int:quiz_id>', methods=['GET'])
@@ -634,3 +646,19 @@ def get_score_summary():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@user_bp.route('/debug-schema', methods=['GET'])
+def debug_schema():
+    # Clear metadata and reflect the table
+    db.metadata.clear()
+    db.metadata.reflect(db.engine)
+    
+    # Get table info
+    table = db.metadata.tables.get('quizzes')
+    if table is not None:
+        columns = [col.name for col in table.columns]
+        print(f"SQLAlchemy sees columns: {columns}")
+        return jsonify({'sqlalchemy_sees_columns': columns})
+    else:
+        print("Table not found")
+        return jsonify({'error': 'Table not found in metadata'})
