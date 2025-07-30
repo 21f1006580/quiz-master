@@ -9,6 +9,8 @@ from datetime import datetime, timedelta
 from sqlalchemy import or_
 from backend.api.notification_tasks import export_admin_user_csv
 from utils.decorators import admin_required
+from backend.api.notification_tasks import send_daily_reminders, generate_monthly_report, export_user_quiz_csv, export_admin_user_csv
+from backend.api.quiz_tasks import check_and_expire_quizzes, send_expiry_warnings, daily_cleanup, expire_single_quiz, generate_quiz_report
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
 
@@ -1110,3 +1112,174 @@ def manual_expire_check():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/admin/celery/trigger-tasks', methods=['POST'])
+@admin_required
+def trigger_celery_tasks():
+    """Trigger all Celery tasks for testing and monitoring"""
+    try:
+        # Get task parameters
+        data = request.get_json() or {}
+        task_type = data.get('task_type', 'all')
+        
+        results = {}
+        
+        if task_type in ['all', 'notification']:
+            # Trigger notification tasks
+            daily_reminder_task = send_daily_reminders.delay()
+            monthly_report_task = generate_monthly_report.delay()
+            
+            results['notification_tasks'] = {
+                'daily_reminders': {
+                    'task_id': daily_reminder_task.id,
+                    'status': 'queued'
+                },
+                'monthly_report': {
+                    'task_id': monthly_report_task.id,
+                    'status': 'queued'
+                }
+            }
+        
+        if task_type in ['all', 'quiz']:
+            # Trigger quiz tasks
+            expiry_check_task = check_and_expire_quizzes.delay()
+            expiry_warnings_task = send_expiry_warnings.delay()
+            cleanup_task = daily_cleanup.delay()
+            report_task = generate_quiz_report.delay()
+            
+            results['quiz_tasks'] = {
+                'expiry_check': {
+                    'task_id': expiry_check_task.id,
+                    'status': 'queued'
+                },
+                'expiry_warnings': {
+                    'task_id': expiry_warnings_task.id,
+                    'status': 'queued'
+                },
+                'daily_cleanup': {
+                    'task_id': cleanup_task.id,
+                    'status': 'queued'
+                },
+                'quiz_report': {
+                    'task_id': report_task.id,
+                    'status': 'queued'
+                }
+            }
+        
+        if task_type in ['all', 'export']:
+            # Trigger export tasks (for demo users)
+            users = User.query.filter_by(is_admin=False).limit(2).all()
+            export_tasks = {}
+            
+            for user in users:
+                user_export_task = export_user_quiz_csv.delay(user.user_id)
+                export_tasks[f'user_{user.user_id}'] = {
+                    'task_id': user_export_task.id,
+                    'status': 'queued',
+                    'user_name': user.user_name
+                }
+            
+            admin_export_task = export_admin_user_csv.delay()
+            export_tasks['admin_export'] = {
+                'task_id': admin_export_task.id,
+                'status': 'queued'
+            }
+            
+            results['export_tasks'] = export_tasks
+        
+        return jsonify({
+            'success': True,
+            'message': f'Triggered {task_type} tasks successfully',
+            'results': results,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@admin_bp.route('/admin/celery/task-status/<task_id>', methods=['GET'])
+@admin_required
+def get_task_status(task_id):
+    """Get the status of a specific Celery task"""
+    try:
+        from celery.result import AsyncResult
+        
+        task_result = AsyncResult(task_id)
+        
+        status_info = {
+            'task_id': task_id,
+            'status': task_result.status,
+            'ready': task_result.ready(),
+            'successful': task_result.successful(),
+            'failed': task_result.failed()
+        }
+        
+        if task_result.ready():
+            if task_result.successful():
+                status_info['result'] = task_result.result
+            else:
+                status_info['error'] = str(task_result.info)
+        
+        return jsonify({
+            'success': True,
+            'task_status': status_info
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@admin_bp.route('/admin/celery/active-tasks', methods=['GET'])
+@admin_required
+def get_active_tasks():
+    """Get list of active Celery tasks"""
+    try:
+        from celery.task.control import inspect
+        
+        i = inspect()
+        
+        active_tasks = {
+            'active': i.active(),
+            'reserved': i.reserved(),
+            'scheduled': i.scheduled(),
+            'registered': i.registered()
+        }
+        
+        return jsonify({
+            'success': True,
+            'active_tasks': active_tasks,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@admin_bp.route('/admin/celery/worker-status', methods=['GET'])
+@admin_required
+def get_worker_status():
+    """Get Celery worker status"""
+    try:
+        from celery.task.control import inspect
+        
+        i = inspect()
+        stats = i.stats()
+        
+        return jsonify({
+            'success': True,
+            'worker_status': stats,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
