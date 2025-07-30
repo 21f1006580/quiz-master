@@ -91,6 +91,7 @@ def create_app():
     app.register_blueprint(admin_bp)
     
     # Create Celery instance
+    global celery
     celery = make_celery(app)
     
     # Error handlers

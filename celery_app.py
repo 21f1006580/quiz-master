@@ -4,8 +4,12 @@ from celery import Celery
 from celery.schedules import crontab
 import os
 
+# Global Celery instance
+celery = None
+
 def make_celery(app):
     """Create Celery instance"""
+    global celery
     celery = Celery(
         app.import_name,
         backend=app.config.get('result_backend', 'redis://localhost:6379/0'),

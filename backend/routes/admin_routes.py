@@ -1126,19 +1126,24 @@ def trigger_celery_tasks():
         
         if task_type in ['all', 'notification']:
             # Trigger notification tasks
-            daily_reminder_task = send_daily_reminders.delay()
-            monthly_report_task = generate_monthly_report.delay()
-            
-            results['notification_tasks'] = {
-                'daily_reminders': {
-                    'task_id': daily_reminder_task.id,
-                    'status': 'queued'
-                },
-                'monthly_report': {
-                    'task_id': monthly_report_task.id,
-                    'status': 'queued'
+            try:
+                daily_reminder_task = send_daily_reminders.delay()
+                monthly_report_task = generate_monthly_report.delay()
+                
+                results['notification_tasks'] = {
+                    'daily_reminders': {
+                        'task_id': daily_reminder_task.id,
+                        'status': 'queued'
+                    },
+                    'monthly_report': {
+                        'task_id': monthly_report_task.id,
+                        'status': 'queued'
+                    }
                 }
-            }
+            except Exception as e:
+                results['notification_tasks'] = {
+                    'error': str(e)
+                }
         
         if task_type in ['all', 'quiz']:
             # Trigger quiz tasks
