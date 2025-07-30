@@ -17,6 +17,7 @@ Flask-Mail==0.9.1
 
 # Development and Testing
 Flask-Cors==4.0.0
+requests==2.31.0
 
 # Date and Time handling
 python-dateutil==2.8.2

@@ -29,8 +29,8 @@ def create_app():
     app.config['JWT_SECRET_KEY'] = 'jwt-secret-key-change-in-production'
     app.config['JWT_ACCESS_TOKEN_EXPIRES'] = False  # Tokens don't expire (change for production)
 
-    app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'
-    app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
+    app.config['broker_url'] = 'redis://localhost:6379/0'
+    app.config['result_backend'] = 'redis://localhost:6379/0'
     
     # Initialize JWT
     jwt = JWTManager(app)
@@ -72,7 +72,7 @@ def create_app():
                 'celery_running': bool(stats),
                 'workers': stats or {},
                 'active_tasks': active_tasks or {},
-                'broker_url': app.config['CELERY_BROKER_URL']
+                'broker_url': app.config['broker_url']
             }
         except Exception as e:
             return {
@@ -92,7 +92,7 @@ def create_app():
     @app.route('/api/admin/quiz/expire-check', methods=['POST'])
     def manual_expire_check():
         """Manually trigger quiz expiry check"""
-        from tasks.quiz_tasks import check_and_expire_quizzes
+        from backend.api.quiz_tasks import check_and_expire_quizzes
         
         # Run task asynchronously
         task = check_and_expire_quizzes.delay()
@@ -106,7 +106,7 @@ def create_app():
     @app.route('/api/admin/quiz/expire/<int:quiz_id>', methods=['POST'])
     def manual_expire_quiz(quiz_id):
         """Manually expire a specific quiz"""
-        from tasks.quiz_tasks import expire_single_quiz
+        from backend.api.quiz_tasks import expire_single_quiz
         
         task = expire_single_quiz.delay(quiz_id)
         

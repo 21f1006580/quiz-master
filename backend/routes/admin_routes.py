@@ -1,13 +1,9 @@
 # routes/admin_routes.py - Admin Dashboard API Routes
 
-
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
-
 from functools import wraps
 from backend.models.models import db, User, Subject, Chapter, Quiz, Question
-
-from utils.decorators import admin_required
 from datetime import datetime
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
