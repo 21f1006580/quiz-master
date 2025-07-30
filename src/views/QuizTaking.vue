@@ -313,6 +313,15 @@ export default {
         }
       })
       return count
+    },
+
+    timeLeft() {
+      // Calculate remaining time based on quiz duration
+      if (!this.quizDetails || !this.quizDetails.duration) return 1800
+      
+      const totalSeconds = this.quizDetails.duration * 60
+      const elapsedSeconds = 0 // For now, assume no time has elapsed
+      return Math.max(0, totalSeconds - elapsedSeconds)
     }
   },
 
@@ -639,6 +648,17 @@ export default {
       }
       
       return ''
+    },
+
+    formatTime(seconds) {
+      const minutes = Math.floor(seconds / 60)
+      const remainingSeconds = seconds % 60
+      return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
+    },
+
+    viewResults() {
+      // Navigate to results page or show detailed results
+      this.$router.push(`/quiz/${this.quizId}/results`)
     },
 
     goToDashboard() {
