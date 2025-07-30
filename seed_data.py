@@ -167,39 +167,39 @@ def seed_data():
             (15, "What is the mode of [1, 1, 2, 3, 3]?", ["1 and 3", "1", "2", "3"], 1),
             
             # Mechanics Practice questions
-            (18, "What is Newton's Second Law?", ["F = ma", "F = mg", "F = mv", "F = mgh"], 1),
-            (18, "What is the unit of energy?", ["Joule", "Newton", "Watt", "Pascal"], 1),
-            (18, "What is the formula for potential energy?", ["mgh", "½mv²", "ma", "mv"], 1),
+            (10, "What is Newton's Second Law?", ["F = ma", "F = mg", "F = mv", "F = mgh"], 1),
+            (10, "What is the unit of energy?", ["Joule", "Newton", "Watt", "Pascal"], 1),
+            (10, "What is the formula for potential energy?", ["mgh", "½mv²", "ma", "mv"], 1),
             
             # Physics Fundamentals questions
-            (19, "What is the SI unit of mass?", ["Kilogram", "Newton", "Meter", "Second"], 1),
-            (19, "What is the SI unit of length?", ["Meter", "Centimeter", "Kilometer", "Inch"], 1),
-            (19, "What is the SI unit of time?", ["Second", "Minute", "Hour", "Day"], 1),
+            (11, "What is the SI unit of mass?", ["Kilogram", "Newton", "Meter", "Second"], 1),
+            (11, "What is the SI unit of length?", ["Meter", "Centimeter", "Kilometer", "Inch"], 1),
+            (11, "What is the SI unit of time?", ["Second", "Minute", "Hour", "Day"], 1),
             
             # Programming Practice questions
-            (22, "What is a loop used for?", ["Repeating code", "Storing data", "Defining functions", "Handling errors"], 1),
-            (22, "What is a variable?", ["Container for data", "Function", "Loop", "Condition"], 1),
-            (22, "What is debugging?", ["Finding errors", "Writing code", "Running programs", "Documenting"], 1),
+            (15, "What is a loop used for?", ["Repeating code", "Storing data", "Defining functions", "Handling errors"], 1),
+            (15, "What is a variable?", ["Container for data", "Function", "Loop", "Condition"], 1),
+            (15, "What is debugging?", ["Finding errors", "Writing code", "Running programs", "Documenting"], 1),
             
             # Coding Fundamentals questions
-            (23, "What is an array?", ["Collection of elements", "Single value", "Function", "Loop"], 1),
-            (23, "What is a function?", ["Reusable code block", "Data type", "Variable", "Operator"], 1),
-            (23, "What is a string?", ["Text data", "Number data", "Boolean data", "Array data"], 1),
+            (16, "What is an array?", ["Collection of elements", "Single value", "Function", "Loop"], 1),
+            (16, "What is a function?", ["Reusable code block", "Data type", "Variable", "Operator"], 1),
+            (16, "What is a string?", ["Text data", "Number data", "Boolean data", "Array data"], 1),
             
             # Algorithm Practice questions
-            (24, "What is time complexity?", ["Algorithm efficiency", "Code length", "Memory usage", "Program speed"], 1),
-            (24, "What is Big O notation?", ["Complexity measure", "Code style", "Data structure", "Programming language"], 1),
-            (24, "What is a sorting algorithm?", ["Arranging data", "Searching data", "Storing data", "Deleting data"], 1),
+            (17, "What is time complexity?", ["Algorithm efficiency", "Code length", "Memory usage", "Program speed"], 1),
+            (17, "What is Big O notation?", ["Complexity measure", "Code style", "Data structure", "Programming language"], 1),
+            (17, "What is a sorting algorithm?", ["Arranging data", "Searching data", "Storing data", "Deleting data"], 1),
             
             # Literature Practice questions
-            (25, "What is a metaphor?", ["Comparison without 'like' or 'as'", "Direct comparison", "Sound device", "Rhyme scheme"], 1),
-            (25, "What is a simile?", ["Comparison using 'like' or 'as'", "Direct comparison", "Sound device", "Rhyme scheme"], 1),
-            (25, "What is alliteration?", ["Repetition of sounds", "Repetition of words", "Rhyme scheme", "Meter pattern"], 1),
+            (21, "What is a metaphor?", ["Comparison without 'like' or 'as'", "Direct comparison", "Sound device", "Rhyme scheme"], 1),
+            (21, "What is a simile?", ["Comparison using 'like' or 'as'", "Direct comparison", "Sound device", "Rhyme scheme"], 1),
+            (21, "What is alliteration?", ["Repetition of sounds", "Repetition of words", "Rhyme scheme", "Meter pattern"], 1),
             
             # Poetry Practice questions
-            (26, "What is a stanza?", ["Group of lines", "Single line", "Rhyme scheme", "Meter pattern"], 1),
-            (26, "What is a rhyme scheme?", ["Pattern of rhymes", "Number of lines", "Meter pattern", "Poem length"], 1),
-            (26, "What is free verse?", ["No regular meter or rhyme", "Regular meter", "Regular rhyme", "Fixed form"], 1)
+            (22, "What is a stanza?", ["Group of lines", "Single line", "Rhyme scheme", "Meter pattern"], 1),
+            (22, "What is a rhyme scheme?", ["Pattern of rhymes", "Number of lines", "Meter pattern", "Poem length"], 1),
+            (22, "What is free verse?", ["No regular meter or rhyme", "Regular meter", "Regular rhyme", "Fixed form"], 1)
         ]
         
         for quiz_id, statement, options, correct in questions_data:
