@@ -109,6 +109,75 @@
               {{ saving ? 'Saving...' : (editingQuiz ? 'Update' : 'Create') }}
             </button>
           </div>
+          <div class="form-section">
+  <h4>Auto-Expiry Settings</h4>
+  
+  <div class="form-group">
+    <label class="checkbox-label">
+      <input type="checkbox" v-model="form.auto_expire" />
+      <span>Enable automatic expiry</span>
+    </label>
+    <small class="form-help">Quiz will automatically lock when end time is reached</small>
+  </div>
+
+  <div v-if="form.auto_expire" class="expiry-settings">
+    <div class="form-row">
+      <div class="form-group">
+        <label>End Date</label>
+        <input 
+          v-model="form.end_date" 
+          type="date" 
+          class="form-control"
+          :min="form.start_date || today"
+        />
+        <small class="form-help">When should this quiz expire?</small>
+      </div>
+      
+      <div class="form-group">
+        <label>End Time</label>
+        <input 
+          v-model="form.end_time" 
+          type="time" 
+          class="form-control"
+          :disabled="!form.end_date"
+        />
+        <small class="form-help">Time when quiz becomes unavailable</small>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Grace Period (minutes)</label>
+      <input 
+        v-model.number="form.grace_period" 
+        type="number" 
+        class="form-control"
+        min="0" 
+        max="60"
+        placeholder="0"
+      />
+      <small class="form-help">Extra time after end time for ongoing attempts (0-60 minutes)</small>
+    </div>
+
+    <!-- Expiry Preview -->
+    <div v-if="form.end_date && form.end_time" class="expiry-preview">
+      <h5>Expiry Schedule</h5>
+      <div class="preview-items">
+        <div class="preview-item">
+          <i class="fas fa-calendar-alt"></i>
+          <span>Expires: {{ formatDateTime(form.end_date, form.end_time) }}</span>
+        </div>
+        <div v-if="form.grace_period > 0" class="preview-item">
+          <i class="fas fa-clock"></i>
+          <span>Final deadline: {{ formatDateTimeWithGrace(form.end_date, form.end_time, form.grace_period) }}</span>
+        </div>
+        <div class="preview-item">
+          <i class="fas fa-info-circle"></i>
+          <span class="expiry-status">{{ getExpiryStatus(form.end_date, form.end_time) }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
         </form>
       </div>
     </div>
@@ -138,9 +207,13 @@ export default {
         title: '',
         start_date: '',
         start_time: '',
+        end_date: '',
+        end_time: '',
         time_duration: 30,
         remarks: '',
-        is_active: true
+        is_active: true,
+        auto_expire: true,  // Enable by default
+        grace_period: 5     // 5 minute grace period by default
       }
     }
   },
@@ -193,8 +266,7 @@ export default {
       } finally {
         this.loading = false
       }
-    },
-    
+    },    
     openCreateModal() {
       if (!this.selectedChapterId) {
         this.showMessage('Please select a chapter first', 'error')
@@ -335,6 +407,119 @@ export default {
       this.message = message
       this.messageType = type
       setTimeout(() => { this.message = '' }, 5000)
+    },
+
+    async saveQuiz() {
+      try {
+        this.saving = true
+        
+        // Enhanced validation for auto-expiry
+        if (this.form.auto_expire) {
+          if (!this.form.end_date || !this.form.end_time) {
+            this.showMessage('End date and time are required when auto-expiry is enabled', 'error')
+            return
+          }
+          
+          const startDateTime = new Date(`${this.form.start_date}T${this.form.start_time}`)
+          const endDateTime = new Date(`${this.form.end_date}T${this.form.end_time}`)
+          
+          if (endDateTime <= startDateTime) {
+            this.showMessage('End time must be after start time', 'error')
+            return
+          }
+          
+          // Minimum quiz duration check
+          const durationHours = (endDateTime - startDateTime) / (1000 * 60 * 60)
+          if (durationHours < 0.5) {
+            this.showMessage('Quiz must be available for at least 30 minutes', 'error')
+            return
+          }
+        }
+        
+        const data = {
+          title: this.form.title,
+          chapter_id: this.selectedChapterId,
+          start_date: this.form.start_date,
+          start_time: this.form.start_time,
+          end_date: this.form.auto_expire ? this.form.end_date : null,
+          end_time: this.form.auto_expire ? this.form.end_time : null,
+          time_duration: this.form.time_duration,
+          remarks: this.form.remarks,
+          is_active: this.form.is_active,
+          auto_expire: this.form.auto_expire,
+          grace_period: this.form.auto_expire ? this.form.grace_period : 0
+        }
+        
+        // ... rest of save logic
+        
+      } catch (error) {
+        // ... error handling
+      } finally {
+        this.saving = false
+      }
+    },
+
+    formatDateTime(date, time) {
+      if (!date || !time) return 'Not set'
+      const dateTime = new Date(`${date}T${time}`)
+      return dateTime.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    },
+
+    formatDateTimeWithGrace(date, time, graceMinutes) {
+      if (!date || !time || !graceMinutes) return this.formatDateTime(date, time)
+      const dateTime = new Date(`${date}T${time}`)
+      const withGrace = new Date(dateTime.getTime() + graceMinutes * 60 * 1000)
+      return withGrace.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    },
+
+    getExpiryStatus(date, time) {
+      if (!date || !time) return ''
+      const endDateTime = new Date(`${date}T${time}`)
+      const now = new Date()
+      
+      if (endDateTime < now) {
+        return 'Would be expired'
+      } else {
+        const hoursUntil = Math.round((endDateTime - now) / (1000 * 60 * 60))
+        return `Will expire in ${hoursUntil} hours`
+      }
+    },
+
+    // Add method to check quiz status in real-time
+    getStatus(quiz) {
+      const now = new Date()
+      const startDate = new Date(quiz.date_of_quiz)
+      
+      if (!quiz.is_active) return 'Inactive'
+      if (now < startDate) return 'Upcoming'
+      
+      // Check auto-expiry
+      if (quiz.auto_expire && quiz.end_date_time) {
+        const endDate = new Date(quiz.end_date_time)
+        const graceEnd = quiz.grace_period ? 
+          new Date(endDate.getTime() + quiz.grace_period * 60 * 1000) : endDate
+        
+        if (now > graceEnd) return 'Expired'
+        if (now > endDate) return 'Grace Period'
+        
+        // Check if ending soon (within 30 minutes)
+        const minutesUntilEnd = (endDate - now) / (1000 * 60)
+        if (minutesUntilEnd <= 30 && minutesUntilEnd > 0) return 'Ending Soon'
+      }
+      
+      return 'Active'
     }
   }
 }
@@ -527,5 +712,76 @@ export default {
   .header-actions { flex-direction: column; width: 100%; }
   .form-row { flex-direction: column; }
   .actions { flex-direction: column; }
+}
+
+
+.expiry-settings {
+  background: #fff8f0;
+  border: 1px solid #ffd09b;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.expiry-preview {
+  background: #f0f8ff;
+  border: 1px solid #b3d9ff;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.expiry-preview h5 {
+  margin: 0 0 0.75rem 0;
+  color: #0066cc;
+  font-size: 0.9rem;
+}
+
+.preview-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.preview-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.preview-item i {
+  width: 16px;
+  color: #666;
+}
+
+.expiry-status {
+  font-weight: 500;
+  color: #333;
+}
+
+/* Enhanced status badges */
+.status-badge.ending-soon {
+  background: #ff9800;
+  color: white;
+  animation: blink 2s infinite;
+}
+
+.status-badge.grace-period {
+  background: #ff5722;
+  color: white;
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0.7; }
+}
+
+.form-help {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  color: #6c757d;
+  font-style: italic;
 }
 </style>

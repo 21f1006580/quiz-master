@@ -202,7 +202,8 @@
 
 <script>
 
-// QuizTaking.vue with Timer and Instant Feedback
+// Enhanced QuizTaking.vue with auto-expiry monitoring
+
 export default {
   name: 'QuizTaking',
   data() {
@@ -212,66 +213,63 @@ export default {
       questions: [],
       currentQuestionIndex: 0,
       selectedAnswers: {},
-      questionFeedback: {}, // Store feedback for each question
       loading: true,
       quizCompleted: false,
       finalScore: 0,
       totalQuestions: 0,
-      timeLeft: 0,
-      timer: null,
-      showConfirmModal: false,
-      error: null,
-      // Timer settings
-      timerMode: 'quiz', // 'quiz' | 'question' | 'none'
-      questionTimeLimit: 30, // seconds per question
-      questionTimeLeft: 0,
+      
+      // Timer management
+      questionTimeLeft: 30,
       questionTimer: null,
-      // Feedback settings
-      showInstantFeedback: true,
-      feedbackDelay: 1500, // ms to show feedback before moving to next
+      
+      // Auto-expiry monitoring
+      quizExpiryTime: null,
+      expiryCheckInterval: null,
+      timeUntilExpiry: null,
+      showExpiryWarning: false,
+      autoExpireEnabled: false,
+      
+      error: null
     }
   },
+
   computed: {
-    currentQuestion() {
-      return this.questions[this.currentQuestionIndex] || {}
+    timeUntilExpiryFormatted() {
+      if (!this.timeUntilExpiry) return null
+      
+      const hours = Math.floor(this.timeUntilExpiry / 60)
+      const minutes = this.timeUntilExpiry % 60
+      
+      if (hours > 0) {
+        return `${hours}h ${minutes}m`
+      } else {
+        return `${minutes}m`
+      }
     },
-    progressPercentage() {
-      return this.questions.length > 0 ? ((this.currentQuestionIndex + 1) / this.questions.length) * 100 : 0
-    },
-    answeredCount() {
-      return Object.keys(this.selectedAnswers).length
-    },
-    canSubmit() {
-      return this.answeredCount > 0
-    },
-    currentQuestionFeedback() {
-      return this.questionFeedback[this.currentQuestion.id] || null
-    },
-    isQuestionAnswered() {
-      return this.selectedAnswers[this.currentQuestion.id] !== undefined
-    },
-    correctAnswersCount() {
-      return Object.values(this.questionFeedback).filter(f => f.isCorrect).length
+
+    shouldShowExpiryWarning() {
+      return this.autoExpireEnabled && this.timeUntilExpiry && this.timeUntilExpiry <= 10
     }
   },
+
   async created() {
     this.quizId = this.$route.params.quizId
-    console.log("Quiz ID from route:", this.quizId)
     await this.loadQuiz()
   },
+
   beforeDestroy() {
     this.clearAllTimers()
   },
+
   methods: {
     async loadQuiz() {
       try {
-        console.log("Loading quiz with ID:", this.quizId)
+        console.log("Loading quiz with auto-expiry check...")
         this.loading = true
         this.error = null
 
         const token = localStorage.getItem('access_token')
         if (!token) {
-          console.log("No token found, redirecting to login")
           this.$router.push('/login')
           return
         }
@@ -284,11 +282,9 @@ export default {
           }
         })
         
-        console.log("Quiz API response status:", response.status)
-        
         if (response.ok) {
           const data = await response.json()
-          console.log("Quiz data received:", data)
+          console.log("Quiz data with expiry info:", data)
           
           this.quizDetails = {
             id: data.quiz_id,
@@ -302,18 +298,29 @@ export default {
           this.questions = data.questions || []
           this.totalQuestions = this.questions.length
           
-          // Determine timer mode based on quiz settings
-          this.setupTimers(data)
+          // Set up auto-expiry monitoring
+          this.autoExpireEnabled = data.auto_expire_enabled
+          this.timeUntilExpiry = data.time_remaining_until_expiry
           
-          console.log("Questions loaded:", this.questions.length)
-          console.log("Quiz details:", this.quizDetails)
+          if (data.quiz_expires_at) {
+            this.quizExpiryTime = new Date(data.quiz_expires_at)
+            this.startExpiryMonitoring()
+          }
+          
+          this.startQuestionTimer()
           
         } else {
           const errorData = await response.json()
           this.error = errorData.error || 'Failed to load quiz'
           console.error("Quiz loading error:", this.error)
           
-          alert(this.error)
+          // Show specific error for expired quiz
+          if (errorData.quiz_status === 'expired') {
+            alert('This quiz has expired and is no longer available.')
+          } else {
+            alert(this.error)
+          }
+          
           setTimeout(() => {
             this.$router.push('/dashboard')
           }, 2000)
@@ -329,194 +336,159 @@ export default {
       }
     },
 
-    setupTimers(data) {
-      // Force question timer mode with 30 seconds per question
-      this.timerMode = 'question'
-      this.questionTimeLimit = 30 // Force 30 seconds per question
-      this.questionTimeLeft = this.questionTimeLimit
-      this.startQuestionTimer()
+    startExpiryMonitoring() {
+      if (!this.autoExpireEnabled || !this.quizExpiryTime) return
+
+      console.log("Starting quiz expiry monitoring...")
+      console.log("Quiz expires at:", this.quizExpiryTime)
+      
+      // Check expiry every 30 seconds
+      this.expiryCheckInterval = setInterval(() => {
+        this.checkQuizExpiry()
+      }, 30000)
+      
+      // Also check immediately
+      this.checkQuizExpiry()
     },
 
-    startQuizTimer() {
-      if (this.timeLeft <= 0) return
-      
-      this.timer = setInterval(() => {
-        if (this.timeLeft > 0) {
-          this.timeLeft--
-        } else {
-          console.log("Quiz time's up! Auto-submitting")
-          this.submitQuiz()
+    async checkQuizExpiry() {
+      if (!this.autoExpireEnabled) return
+
+      try {
+        const now = new Date()
+        
+        // Calculate time until expiry
+        if (this.quizExpiryTime) {
+          const timeDiff = this.quizExpiryTime.getTime() - now.getTime()
+          this.timeUntilExpiry = Math.max(0, Math.floor(timeDiff / (1000 * 60))) // minutes
+          
+          // Check if quiz has expired
+          if (this.timeUntilExpiry <= 0) {
+            console.log("Quiz has expired!")
+            this.handleQuizExpired()
+            return
+          }
+          
+          // Show warning if expiring soon
+          if (this.timeUntilExpiry <= 5 && !this.showExpiryWarning) {
+            this.showExpiryWarning = true
+            this.showExpiryAlert()
+          }
         }
-      }, 1000)
+        
+        // Double-check with server every 2 minutes
+        if (Math.floor(Date.now() / 1000) % 120 === 0) {
+          await this.checkQuizStatusWithServer()
+        }
+        
+      } catch (error) {
+        console.error('Error checking quiz expiry:', error)
+      }
+    },
+
+    async checkQuizStatusWithServer() {
+      try {
+        const token = localStorage.getItem('access_token')
+        const response = await fetch(`http://localhost:5000/api/user/quiz/${this.quizId}/status`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          
+          if (!data.is_available) {
+            console.log("Server says quiz is no longer available:", data.availability_message)
+            this.handleQuizExpired(data.availability_message)
+          } else {
+            // Update time remaining from server
+            this.timeUntilExpiry = data.time_remaining
+            if (data.expires_at) {
+              this.quizExpiryTime = new Date(data.expires_at)
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error checking quiz status with server:', error)
+      }
+    },
+
+    handleQuizExpired(message = 'This quiz has expired') {
+      this.clearAllTimers()
+      
+      // Show expiry message
+      alert(`${message}\n\nYour quiz attempt will be automatically submitted.`)
+      
+      // Auto-submit if user has answered any questions
+      if (Object.keys(this.selectedAnswers).length > 0) {
+        console.log("Auto-submitting quiz due to expiry...")
+        this.submitAnswers()
+      } else {
+        // No answers to submit, just redirect
+        this.$router.push('/dashboard')
+      }
+    },
+
+    showExpiryAlert() {
+      const timeLeft = this.timeUntilExpiryFormatted
+      alert(`⚠️ Warning: This quiz will expire in ${timeLeft}!\n\nPlease submit your answers soon.`)
     },
 
     startQuestionTimer() {
-      this.questionTimeLeft = this.questionTimeLimit
+      this.questionTimeLeft = 30
       
       this.questionTimer = setInterval(() => {
         if (this.questionTimeLeft > 0) {
           this.questionTimeLeft--
         } else {
-          console.log("Question time's up! Moving to next question")
-          this.handleQuestionTimeout()
+          this.moveToNextQuestionOrSubmit()
         }
       }, 1000)
     },
 
-    handleQuestionTimeout() {
-      console.log("Question time's up! Moving to next question")
-      
-      // If no answer was selected, mark as unanswered
-      if (!this.isQuestionAnswered) {
-        this.questionFeedback[this.currentQuestion.id] = {
-          isCorrect: false,
-          message: "Time's up! No answer selected.",
-          type: 'timeout'
-        }
+    moveToNextQuestionOrSubmit() {
+      if (this.currentQuestionIndex < this.questions.length - 1) {
+        this.currentQuestionIndex++
+        this.startQuestionTimer()
+      } else {
+        // Last question - auto submit
+        this.clearAllTimers()
+        this.submitAnswers()
       }
-      
-      // Always move to next question or submit after timeout
-      this.moveToNextQuestionOrSubmit()
     },
 
     clearAllTimers() {
-      if (this.timer) {
-        clearInterval(this.timer)
-        this.timer = null
-      }
       if (this.questionTimer) {
         clearInterval(this.questionTimer)
         this.questionTimer = null
       }
-    },
-
-    formatTime(seconds) {
-      const minutes = Math.floor(seconds / 60)
-      const remainingSeconds = seconds % 60
-      return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`
+      if (this.expiryCheckInterval) {
+        clearInterval(this.expiryCheckInterval)
+        this.expiryCheckInterval = null
+      }
     },
 
     async saveAnswer() {
       console.log("Answer saved:", this.selectedAnswers)
       
-      if (this.showInstantFeedback && this.isQuestionAnswered) {
-        await this.checkAnswerInstantly()
-      }
-    },
-
-    async checkAnswerInstantly() {
-      const questionId = this.currentQuestion.id
-      const selectedOption = this.selectedAnswers[questionId]
-      
-      // Get correct answer from backend
-      try {
-        const token = localStorage.getItem('access_token')
-        const response = await fetch(`http://localhost:5000/api/user/question/${questionId}/check`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            selected_option: selectedOption - 1 // Convert to 0-based
-          })
-        })
-
-        if (response.ok) {
-          const data = await response.json()
-          
-          this.questionFeedback[questionId] = {
-            isCorrect: data.is_correct,
-            correctOption: data.correct_option,
-            explanation: data.explanation || '',
-            message: data.is_correct ? 
-              "Correct! Well done!" : 
-              `Incorrect. The correct answer is option ${data.correct_option}.`,
-            type: data.is_correct ? 'correct' : 'incorrect'
-          }
-
-          // Auto-move to next question after showing feedback for 2 seconds
-          setTimeout(() => {
-            this.moveToNextQuestionOrSubmit()
-          }, 2000)
-        }
-      } catch (error) {
-        console.error('Error checking answer:', error)
-        // If API call fails, still move to next question
-        setTimeout(() => {
-          this.moveToNextQuestionOrSubmit()
-        }, 1000)
-      }
-    },
-
-    moveToNextQuestionOrSubmit() {
-      if (this.currentQuestionIndex < this.questions.length - 1) {
-        // Move to next question
-        this.currentQuestionIndex++
-        this.resetQuestionTimer()
-      } else {
-        // Last question - auto submit
-        console.log("Last question completed, auto-submitting quiz")
-        this.clearAllTimers()
-        this.submitAnswers() // Direct submit without confirmation modal
-      }
-    },
-
-    previousQuestion() {
-      if (this.currentQuestionIndex > 0) {
-        this.currentQuestionIndex--
-        this.resetQuestionTimer()
-      }
-    },
-
-    nextQuestion() {
-      if (this.currentQuestionIndex < this.questions.length - 1) {
-        this.currentQuestionIndex++
-        this.resetQuestionTimer()
-      }
-    },
-
-    resetQuestionTimer() {
-      if (this.timerMode === 'question') {
-        clearInterval(this.questionTimer)
-        this.questionTimeLeft = this.questionTimeLimit
-        this.startQuestionTimer()
-      }
-    },
-
-    goToQuestion(index) {
-      this.currentQuestionIndex = index
-      this.resetQuestionTimer()
-    },
-
-    submitQuiz() {
-      console.log("Submit quiz called, answered count:", this.answeredCount)
-      
-      if (this.answeredCount === 0) {
-        alert('Please answer at least one question before submitting.')
+      // Check if quiz is still available before allowing answer
+      if (this.timeUntilExpiry && this.timeUntilExpiry <= 0) {
+        alert('Quiz has expired. Your answer was not saved.')
+        this.handleQuizExpired()
         return
       }
-      this.showConfirmModal = true
-    },
-
-    async confirmSubmit() {
-      this.showConfirmModal = false
-      this.clearAllTimers()
-      await this.submitAnswers()
-    },
-
-    closeConfirmModal() {
-      this.showConfirmModal = false
+      
+      // Move to next question after 2 seconds
+      setTimeout(() => {
+        this.moveToNextQuestionOrSubmit()
+      }, 2000)
     },
 
     async submitAnswers() {
       try {
-        console.log("Submitting answers:", this.selectedAnswers)
+        console.log("Submitting answers with expiry check...")
         
         const token = localStorage.getItem('access_token')
-        const totalTimeSpent = this.timerMode === 'quiz' ? 
-          (this.quizDetails.duration * 60 - this.timeLeft) : 
-          (this.questions.length * this.questionTimeLimit)
+        const totalTimeSpent = this.questions.length * 30 // Approximate time
         
         const formattedAnswers = {}
         Object.keys(this.selectedAnswers).forEach(questionId => {
@@ -535,19 +507,30 @@ export default {
           })
         })
         
-        console.log("Submit response status:", response.status)
-        
         if (response.ok) {
           const data = await response.json()
-          console.log("Submit response data:", data)
+          console.log("Submit response:", data)
           
           this.finalScore = (data.score && data.score.percentage_score) ? data.score.percentage_score : 0
           this.quizCompleted = true
           
+          // Show warning if quiz expired during submission
+          if (data.warning) {
+            setTimeout(() => {
+              alert(`Note: ${data.warning}`)
+            }, 1000)
+          }
+          
         } else {
           const errorData = await response.json()
           console.error("Submit error:", errorData)
-          alert('Error submitting quiz: ' + (errorData.error || 'Unknown error'))
+          
+          if (errorData.error.includes('expired')) {
+            alert('Quiz expired before submission could be completed.')
+            this.$router.push('/dashboard')
+          } else {
+            alert('Error submitting quiz: ' + (errorData.error || 'Unknown error'))
+          }
         }
       } catch (error) {
         console.error('Error submitting quiz:', error)
@@ -557,30 +540,6 @@ export default {
 
     goToDashboard() {
       this.$router.push('/dashboard')
-    },
-
-    viewResults() {
-      this.$router.push(`/user/quiz/${this.quizId}/results`)
-    },
-
-    getOptionClass(optionIndex) {
-      const questionId = this.currentQuestion.id
-      const feedback = this.questionFeedback[questionId]
-      const selectedOption = this.selectedAnswers[questionId]
-      
-      if (!feedback) return ''
-      
-      const currentOptionNumber = optionIndex + 1
-      
-      if (selectedOption === currentOptionNumber) {
-        return feedback.isCorrect ? 'option-correct' : 'option-incorrect'
-      }
-      
-      if (feedback.correctOption === currentOptionNumber && !feedback.isCorrect) {
-        return 'option-show-correct'
-      }
-      
-      return ''
     }
   }
 }

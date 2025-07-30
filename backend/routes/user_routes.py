@@ -194,52 +194,81 @@ def get_quizzes_by_subject(subject_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# In your user_routes.py - Update the route to match frontend expectation
+@user_bp.route('/quiz/<int:quiz_id>/status', methods=['GET'])
+@jwt_required()
+def check_quiz_status(quiz_id):
+    """Check current quiz status (useful for live updates)"""
+    try:
+        user_name = get_jwt_identity()
+        user = User.query.filter_by(user_name=user_name).first()
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        quiz = Quiz.query.get(quiz_id)
+        if not quiz:
+            return jsonify({'error': 'Quiz not found'}), 404
+        
+        # Check if quiz should be auto-locked
+        was_locked = quiz.auto_lock_if_expired()
+        if was_locked:
+            db.session.commit()
+        
+        is_available, message = quiz.is_available_for_attempt(user.user_id)
+        
+        return jsonify({
+            'quiz_id': quiz.quiz_id,
+            'title': quiz.title,
+            'status': quiz.get_status(),
+            'is_available': is_available,
+            'availability_message': message,
+            'time_remaining': quiz.get_time_remaining(),
+            'expires_at': quiz.get_effective_end_time().isoformat() if quiz.get_effective_end_time() else None,
+            'was_auto_locked': was_locked,
+            'current_time': datetime.now().isoformat()
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @user_bp.route('/quiz/<int:quiz_id>/take', methods=['GET'])
 @jwt_required()
 def start_quiz(quiz_id):
-    """Start a quiz attempt - get quiz details and questions"""
+    """Start a quiz with auto-expiry checking"""
     try:
-        print(f"=== START QUIZ ENDPOINT HIT ===")
+        print(f"=== QUIZ ACCESS CHECK (with auto-expiry) ===")
         print(f"Quiz ID: {quiz_id}")
+        print(f"Timestamp: {datetime.now()}")
         
         user_name = get_jwt_identity()
-        print(f"User: {user_name}")
-        
         user = User.query.filter_by(user_name=user_name).first()
         if not user:
-            print("ERROR: User not found")
             return jsonify({'error': 'User not found'}), 404
 
-        quiz = Quiz.query.get(quiz_id)  # Use .get() instead of .get_or_404() for better error handling
+        quiz = Quiz.query.get(quiz_id)
         if not quiz:
-            print(f"ERROR: Quiz {quiz_id} not found")
             return jsonify({'error': 'Quiz not found'}), 404
-            
-        print(f"Quiz found: {quiz.title}")
         
-        # Check if quiz is active
-        if not quiz.is_active:
-            print(f"ERROR: Quiz {quiz_id} is not active")
-            return jsonify({'error': 'This quiz is not available'}), 403
+        print(f"Quiz: {quiz.title}")
+        print(f"Quiz status before check: {quiz.get_status()}")
+        print(f"Quiz active: {quiz.is_active}")
+        print(f"Quiz expired: {quiz.is_expired()}")
         
-        # Check if user has already attempted this quiz
-        existing_score = Score.query.filter_by(
-            user_id=user.user_id, 
-            quiz_id=quiz_id
-        ).first()
+        # AUTO-EXPIRY CHECK: This will automatically lock quiz if expired
+        is_available, message = quiz.is_available_for_attempt(user.user_id)
         
-        if existing_score:
-            print(f"ERROR: User {user.user_name} already attempted quiz {quiz_id}")
-            return jsonify({'error': 'You have already attempted this quiz'}), 403
+        if not is_available:
+            print(f"Quiz not available: {message}")
+            return jsonify({
+                'error': message,
+                'quiz_status': quiz.get_status(),
+                'time_remaining': quiz.get_time_remaining()
+            }), 403
         
-        # Get questions for this quiz
-        questions = Question.query.filter_by(quiz_id=quiz.quiz_id).all()
-        print(f"Found {len(questions)} questions for quiz {quiz_id}")
+        print(f"✅ Quiz available for attempt")
         
+        # Get questions
+        questions = Question.query.filter_by(quiz_id=quiz_id).all()
         if not questions:
-            print(f"ERROR: No questions found for quiz {quiz_id}")
             return jsonify({'error': 'No questions available for this quiz'}), 404
 
         question_data = []
@@ -263,10 +292,14 @@ def start_quiz(quiz_id):
             'total_questions': len(questions),
             'questions': question_data,
             'chapter_name': quiz.chapter.name if quiz.chapter else None,
-            'subject_name': quiz.chapter.subject.name if quiz.chapter and quiz.chapter.subject else None
+            'subject_name': quiz.chapter.subject.name if quiz.chapter and quiz.chapter.subject else None,
+            'time_remaining_until_expiry': quiz.get_time_remaining(),
+            'quiz_expires_at': quiz.get_effective_end_time().isoformat() if quiz.get_effective_end_time() else None,
+            'show_results_immediately': quiz.show_results_immediately,
+            'auto_expire_enabled': quiz.auto_expire
         }
-        
-        print(f"SUCCESS: Returning quiz data with {len(question_data)} questions")
+    
+        print(f"Time until expiry: {quiz.get_time_remaining()} minutes")
         return jsonify(response_data), 200
         
     except Exception as e:
@@ -274,21 +307,18 @@ def start_quiz(quiz_id):
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
-    
 
 @user_bp.route('/quiz/<int:quiz_id>/submit', methods=['POST'])
 @jwt_required()
 def submit_quiz(quiz_id):
-    """Submit quiz answers and calculate score with enhanced time tracking"""
+    """Submit quiz with expiry validation"""
     try:
         print(f"Quiz ID: {quiz_id}")
+        print(f"Submission time: {datetime.now()}")
         
         data = request.get_json()
-        user_answers = data.get('answers', {})  # format: {question_id: selected_option_index}
-        time_taken = data.get('time_taken', 0)  # time in seconds
-        
-        print(f"Answers received: {user_answers}")
-        print(f"Time taken: {time_taken} seconds")
+        user_answers = data.get('answers', {})
+        time_taken = data.get('time_taken', 0)
 
         user_name = get_jwt_identity()
         user = User.query.filter_by(user_name=user_name).first()
@@ -299,21 +329,41 @@ def submit_quiz(quiz_id):
         if not quiz:
             return jsonify({'error': 'Quiz not found'}), 404
         
-        # Check if user has already attempted this quiz
-        existing_score = Score.query.filter_by(
-            user_id=user.user_id, 
-            quiz_id=quiz_id
-        ).first()
+        # CRITICAL: Check if quiz expired during attempt
+        is_available, message = quiz.is_available_for_attempt(user.user_id)
         
-        if existing_score:
-            return jsonify({'error': 'You have already attempted this quiz'}), 403
+        # Allow submission if quiz just expired (grace period for ongoing attempts)
+        if not is_available and quiz.is_expired():
+            # Check if user already has an ongoing attempt (more lenient check)
+            existing_attempt = Score.query.filter_by(
+                quiz_id=quiz_id,
+                user_id=user.user_id
+            ).first()
+            
+            if existing_attempt and not quiz.allow_multiple_attempts:
+                return jsonify({'error': 'Quiz has expired and you have already submitted'}), 403
+            
+            # Allow submission with warning if quiz just expired
+            print("⚠️  Quiz expired during attempt - allowing submission with warning")
+            submission_warning = "Quiz expired during your attempt, but submission was accepted"
+        else:
+            submission_warning = None
+        
+        # Check for existing attempts (if multiple attempts not allowed)
+        if not quiz.allow_multiple_attempts:
+            existing_score = Score.query.filter_by(
+                user_id=user.user_id, 
+                quiz_id=quiz_id
+            ).first()
+            
+            if existing_score:
+                return jsonify({'error': 'You have already attempted this quiz'}), 403
 
-        # Get all questions for this quiz
+        # Process submission (existing logic)
         questions = Question.query.filter_by(quiz_id=quiz_id).all()
         if not questions:
             return jsonify({'error': 'No questions found for this quiz'}), 404
 
-        # Calculate score
         total_questions = len(questions)
         correct_answers = 0
         detailed_results = []
@@ -322,12 +372,10 @@ def submit_quiz(quiz_id):
             question_id = str(question.question_id)
             user_answer_index = user_answers.get(question_id)
             
-            # Check if answer is correct
             is_correct = False
             user_option = None
             
             if user_answer_index is not None:
-                # Convert 0-based index to 1-based option number
                 user_option = user_answer_index + 1
                 is_correct = (user_option == question.correct_option)
                 if is_correct:
@@ -344,10 +392,9 @@ def submit_quiz(quiz_id):
                            question.option4 if question.option4 else None]
             })
 
-        # Calculate percentage score
         percentage_score = round((correct_answers / total_questions) * 100, 2) if total_questions > 0 else 0
         
-        # Save score to database
+        # Save score
         score_entry = Score(
             quiz_id=quiz_id,
             user_id=user.user_id,
@@ -360,9 +407,11 @@ def submit_quiz(quiz_id):
         db.session.add(score_entry)
         db.session.commit()
 
-        print(f"Quiz submitted successfully: {correct_answers}/{total_questions} = {percentage_score}%")
+        print(f"✅ Quiz submitted successfully: {correct_answers}/{total_questions} = {percentage_score}%")
+        if submission_warning:
+            print(f"⚠️  {submission_warning}")
 
-        return jsonify({
+        response_data = {
             'message': 'Quiz submitted successfully',
             'score': {
                 'total_questions': total_questions,
@@ -371,7 +420,12 @@ def submit_quiz(quiz_id):
                 'time_taken': time_taken,
                 'detailed_results': detailed_results
             }
-        }), 200
+        }
+        
+        if submission_warning:
+            response_data['warning'] = submission_warning
+        
+        return jsonify(response_data), 200
         
     except Exception as e:
         db.session.rollback()
@@ -379,6 +433,7 @@ def submit_quiz(quiz_id):
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
 
 @user_bp.route('/scores', methods=['GET'])
 @jwt_required()

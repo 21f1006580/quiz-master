@@ -751,7 +751,7 @@ def get_users():
 @admin_required
 def get_dashboard_stats():
     """Get dashboard statistics"""
-    total_users = User.query.filter(User.role != 'admin').count()
+    total_users = User.query.filter(User.is_admin == False).count()
     total_subjects = Subject.query.count()
     total_chapters = Chapter.query.count()
     total_quizzes = Quiz.query.count()
@@ -764,3 +764,42 @@ def get_dashboard_stats():
         'total_quizzes': total_quizzes,
         'total_questions': total_questions
     })
+
+
+# Admin route to manually trigger expiry check
+@admin_bp.route('/quizzes/expire-check', methods=['POST'])
+@admin_required
+def manual_expire_check():
+    """Manually trigger quiz expiry check"""
+    try:
+        expired_count = 0
+        locked_quizzes = []
+        
+        # Find and expire quizzes
+        quizzes = Quiz.query.filter(
+            Quiz.is_active == True,
+            Quiz.auto_expire == True
+        ).all()
+        
+        for quiz in quizzes:
+            if quiz.auto_lock_if_expired():
+                expired_count += 1
+                locked_quizzes.append({
+                    'id': quiz.quiz_id,
+                    'title': quiz.title,
+                    'expired_at': quiz.get_effective_end_time().isoformat() if quiz.get_effective_end_time() else None
+                })
+        
+        if expired_count > 0:
+            db.session.commit()
+        
+        return jsonify({
+            'message': f'Expiry check completed. {expired_count} quizzes locked.',
+            'expired_count': expired_count,
+            'locked_quizzes': locked_quizzes,
+            'timestamp': datetime.now().isoformat()
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500

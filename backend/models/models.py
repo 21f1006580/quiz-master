@@ -2,7 +2,7 @@
 
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
+from datetime import datetime,timedelta
 
 db = SQLAlchemy()
 
@@ -111,113 +111,120 @@ class Chapter(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
 
-# FIXED Quiz model - corrected foreign key reference
 class Quiz(db.Model):
-    __tablename__ = 'quizzes'  # CHANGED: Use consistent table name
+    __tablename__ = 'quizzes'
     
     quiz_id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(200), nullable=False)
-    # FIXED: Reference the correct table name
     chapter_id = db.Column(db.Integer, db.ForeignKey('chapters.chapter_id'), nullable=False)
     
-    # ENHANCED SCHEDULING FIELDS
-    date_of_quiz = db.Column(db.DateTime, nullable=False)  # Quiz start time
-    end_date_time = db.Column(db.DateTime, nullable=True)  # Quiz end time (optional)
+    # Scheduling fields
+    date_of_quiz = db.Column(db.DateTime, nullable=False)  # Start time
+    end_date_time = db.Column(db.DateTime, nullable=True)  # End time (optional)
     time_duration = db.Column(db.Integer, nullable=False)  # Duration in minutes
     
-    # NEW SCHEDULING FIELDS
+    # Auto-expiry settings
     is_active = db.Column(db.Boolean, default=True)
+    auto_expire = db.Column(db.Boolean, default=True)  # Auto-lock after expiry
+    grace_period = db.Column(db.Integer, default=0)    # Extra minutes after end time
+    
+    # Other fields
     allow_multiple_attempts = db.Column(db.Boolean, default=False)
     show_results_immediately = db.Column(db.Boolean, default=True)
-    auto_start = db.Column(db.Boolean, default=True)  # Auto available at start time
-    auto_end = db.Column(db.Boolean, default=True)    # Auto lock at end time
-    
     remarks = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    # Relationships - FIXED: No need to redefine backref since it's defined in Chapter
+    # Relationships
     questions = db.relationship('Question', backref='quiz', lazy=True, cascade='all, delete-orphan')
     scores = db.relationship('Score', backref='quiz', lazy=True)
 
-    def to_dict(self):
-        return {
-            'id': self.quiz_id,
-            'quiz_id': self.quiz_id,
-            'title': self.title,
-            'chapter_id': self.chapter_id,
-            'date_of_quiz': self.date_of_quiz.isoformat() if self.date_of_quiz else None,
-            'end_date_time': self.end_date_time.isoformat() if self.end_date_time else None,
-            'time_duration': self.time_duration,
-            'is_active': self.is_active,
-            'allow_multiple_attempts': self.allow_multiple_attempts,
-            'show_results_immediately': self.show_results_immediately,
-            'auto_start': self.auto_start,
-            'auto_end': self.auto_end,
-            'remarks': self.remarks,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'question_count': len(self.questions) if self.questions else 0,
-            'status': self.get_status(),
-            'is_available': self.is_available_now(),
-            'time_remaining': self.get_time_remaining()
-        }
-    
+    def get_effective_end_time(self):
+        """Calculate when quiz should actually expire"""
+        if self.end_date_time:
+            # If explicit end time is set, use it
+            end_time = self.end_date_time
+        else:
+            # If no end time, quiz runs indefinitely (or until manually stopped)
+            return None
+        
+        # Add grace period if specified
+        if self.grace_period and self.grace_period > 0:
+            end_time = end_time + timedelta(minutes=self.grace_period)
+        
+        return end_time
+
+    def is_expired(self):
+        """Check if quiz has expired"""
+        if not self.auto_expire:
+            return False
+            
+        effective_end = self.get_effective_end_time()
+        if not effective_end:
+            return False
+            
+        return datetime.utcnow() > effective_end
+
+    def should_auto_lock(self):
+        """Check if quiz should be automatically locked"""
+        return self.auto_expire and self.is_expired()
+
     def get_status(self):
-        """Get current quiz status"""
+        """Get current quiz status with auto-expiry logic"""
         now = datetime.utcnow()
         
+        # Check if manually deactivated
         if not self.is_active:
             return 'inactive'
         
+        # Check if quiz hasn't started yet
         if now < self.date_of_quiz:
             return 'upcoming'
         
-        # Check if quiz has ended
-        if self.end_date_time and now > self.end_date_time:
+        # Check if quiz has expired
+        if self.is_expired():
             return 'expired'
-        elif not self.end_date_time:
-            # If no end time set, quiz is always available once started
-            return 'active'
-        else:
-            return 'active'
-    
-    def is_available_now(self):
-        """Check if quiz is currently available for attempts"""
+        
+        # Check if quiz is ending soon (within 30 minutes)
+        effective_end = self.get_effective_end_time()
+        if effective_end:
+            time_to_end = (effective_end - now).total_seconds() / 60
+            if 0 < time_to_end <= 30:
+                return 'ending_soon'
+        
+        return 'active'
+
+    def auto_lock_if_expired(self):
+        """Automatically lock quiz if it has expired"""
+        if self.should_auto_lock() and self.is_active:
+            self.is_active = False
+            self.updated_at = datetime.utcnow()
+            return True
+        return False
+
+    def is_available_for_attempt(self, user_id=None):
+        """Check if quiz is available for attempts (with auto-expiry check)"""
+        # Auto-lock if expired
+        was_locked = self.auto_lock_if_expired()
+        if was_locked:
+            db.session.commit()  # Save the auto-lock
+        
+        # Check basic availability
         if not self.is_active:
-            return False
-            
+            return False, "Quiz is not active"
+        
         now = datetime.utcnow()
         
         # Check if quiz has started
         if now < self.date_of_quiz:
-            return False
+            return False, "Quiz has not started yet"
         
-        # Check if quiz has ended
-        if self.end_date_time and now > self.end_date_time:
-            return False
-            
-        return True
-    
-    def get_time_remaining(self):
-        """Get time remaining until quiz ends (in minutes)"""
-        if not self.end_date_time:
-            return None
-            
-        now = datetime.utcnow()
-        if now > self.end_date_time:
-            return 0
-            
-        diff = self.end_date_time - now
-        return int(diff.total_seconds() / 60)
-    
-    def can_user_attempt(self, user_id):
-        """Check if a specific user can attempt this quiz"""
-        if not self.is_available_now():
-            return False, "Quiz is not currently available"
+        # Check if quiz has expired
+        if self.is_expired():
+            return False, "Quiz has expired"
         
-        # Check if user has already attempted
-        if not self.allow_multiple_attempts:
+        # Check multiple attempts if user specified
+        if user_id and not self.allow_multiple_attempts:
             existing_attempt = Score.query.filter_by(
                 quiz_id=self.quiz_id, 
                 user_id=user_id
@@ -228,6 +235,43 @@ class Quiz(db.Model):
         
         return True, "Quiz is available"
 
+    def get_time_remaining(self):
+        """Get time remaining until quiz expires (in minutes)"""
+        effective_end = self.get_effective_end_time()
+        if not effective_end:
+            return None
+            
+        now = datetime.utcnow()
+        if now > effective_end:
+            return 0
+            
+        diff = effective_end - now
+        return int(diff.total_seconds() / 60)
+
+    def to_dict(self):
+        return {
+            'id': self.quiz_id,
+            'quiz_id': self.quiz_id,
+            'title': self.title,
+            'chapter_id': self.chapter_id,
+            'date_of_quiz': self.date_of_quiz.isoformat() if self.date_of_quiz else None,
+            'end_date_time': self.end_date_time.isoformat() if self.end_date_time else None,
+            'effective_end_time': self.get_effective_end_time().isoformat() if self.get_effective_end_time() else None,
+            'time_duration': self.time_duration,
+            'is_active': self.is_active,
+            'auto_expire': self.auto_expire,
+            'grace_period': self.grace_period,
+            'allow_multiple_attempts': self.allow_multiple_attempts,
+            'show_results_immediately': self.show_results_immediately,
+            'remarks': self.remarks,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'question_count': len(self.questions) if self.questions else 0,
+            'status': self.get_status(),
+            'time_remaining': self.get_time_remaining(),
+            'is_expired': self.is_expired(),
+            'is_available': self.is_available_for_attempt()[0]
+        }
 
 class Question(db.Model):
     __tablename__ = 'questions'
