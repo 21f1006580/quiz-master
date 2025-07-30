@@ -119,7 +119,7 @@
             </button>
             
             <button 
-              @click="openConfirmModal" 
+              @click="submitAnswers" 
               :disabled="submitting"
               class="btn-primary submit-btn"
             >
@@ -591,11 +591,6 @@ export default {
         return
       }
       
-      // Confirm submission
-      if (!confirm('Are you sure you want to submit your quiz? You cannot change your answers after submission.')) {
-        return
-      }
-      
       try {
         this.submitting = true
         console.log("Submitting answers with expiry check...")
@@ -620,12 +615,20 @@ export default {
           this.finalScore = (data.score && data.score.percentage_score) ? data.score.percentage_score : 0
           this.quizCompleted = true
           
+          // Show success message
+          alert(`Quiz submitted successfully! Your score: ${this.finalScore}%`)
+          
           // Show warning if quiz expired during submission
           if (data.warning) {
             setTimeout(() => {
               alert(`Note: ${data.warning}`)
             }, 1000)
           }
+          
+          // Redirect to dashboard after a short delay
+          setTimeout(() => {
+            this.$router.push('/dashboard')
+          }, 2000)
           
         } else {
           console.error("Submit error:", response.data)
