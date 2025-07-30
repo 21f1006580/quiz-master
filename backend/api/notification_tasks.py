@@ -1,6 +1,6 @@
 # backend/api/notification_tasks.py - Notification and Report Tasks
 
-from celery import current_app as celery_app
+from celery_app import celery
 from datetime import datetime, timedelta
 from backend.models.models import db, User, Quiz, Score, Subject, Chapter
 import smtplib
@@ -16,7 +16,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-@celery_app.task(bind=True)
+@celery.task(bind=True)
 def send_daily_reminders(self):
     """
     Daily reminder task - sends reminders to users who haven't visited or for new quizzes
@@ -80,7 +80,7 @@ def send_daily_reminders(self):
             'task_id': self.request.id
         }
 
-@celery_app.task(bind=True)
+@celery.task(bind=True)
 def generate_monthly_report(self):
     """
     Monthly activity report task
@@ -141,7 +141,7 @@ def generate_monthly_report(self):
             'task_id': self.request.id
         }
 
-@celery_app.task(bind=True)
+@celery.task(bind=True)
 def export_user_quiz_csv(self, user_id):
     """
     Export user's quiz data as CSV
@@ -221,7 +221,7 @@ def export_user_quiz_csv(self, user_id):
             'task_id': self.request.id
         }
 
-@celery_app.task(bind=True)
+@celery.task(bind=True)
 def export_admin_user_csv(self):
     """
     Export all user performance data as CSV for admin

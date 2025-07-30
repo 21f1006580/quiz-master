@@ -5,17 +5,21 @@ from celery.schedules import crontab
 import os
 
 # Global Celery instance
-celery = None
+celery = Celery(
+    'quiz_master',
+    backend='redis://localhost:6379/0',
+    broker='redis://localhost:6379/0'
+)
 
 def make_celery(app):
     """Create Celery instance"""
     global celery
-    celery = Celery(
-        app.import_name,
-        backend=app.config.get('result_backend', 'redis://localhost:6379/0'),
-        broker=app.config.get('broker_url', 'redis://localhost:6379/0'),
-        include=['backend.api.quiz_tasks', 'backend.api.notification_tasks']  # Include our task modules
-    )
+    
+    # Update configuration from Flask app
+    celery.conf.update(app.config)
+    
+    # Import task modules after Celery is configured
+    celery.autodiscover_tasks(['backend.api.quiz_tasks', 'backend.api.notification_tasks'])
     
     # Update configuration from Flask app
     celery.conf.update(app.config)

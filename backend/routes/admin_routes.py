@@ -1244,7 +1244,8 @@ def get_task_status(task_id):
 def get_active_tasks():
     """Get list of active Celery tasks"""
     try:
-        from celery.task.control import inspect
+        from celery import current_app
+        inspect = current_app.control.inspect
         
         i = inspect()
         
@@ -1272,7 +1273,8 @@ def get_active_tasks():
 def get_worker_status():
     """Get Celery worker status"""
     try:
-        from celery.task.control import inspect
+        from celery import current_app
+        inspect = current_app.control.inspect
         
         i = inspect()
         stats = i.stats()

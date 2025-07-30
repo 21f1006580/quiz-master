@@ -1,6 +1,6 @@
 # tasks/quiz_tasks.py - Create this folder and file
 
-from celery import current_app as celery_app
+from celery_app import celery
 from datetime import datetime, timedelta
 from backend.models.models import db, Quiz, User, Score
 import logging
@@ -9,7 +9,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-@celery_app.task(bind=True)
+@celery.task(bind=True)
 def check_and_expire_quizzes(self):
     """
     Background task to automatically expire quizzes
@@ -80,7 +80,7 @@ def check_and_expire_quizzes(self):
             'task_id': self.request.id
         }
 
-@celery_app.task(bind=True)
+@celery.task(bind=True)
 def send_expiry_warnings(self):
     """
     Send warnings for quizzes expiring soon
@@ -150,7 +150,7 @@ def send_expiry_warnings(self):
             'task_id': self.request.id
         }
 
-@celery_app.task
+@celery.task
 def daily_cleanup():
     """
     Daily maintenance task for quiz system
@@ -196,7 +196,7 @@ def daily_cleanup():
             'timestamp': datetime.now().isoformat()
         }
 
-@celery_app.task
+@celery.task
 def expire_single_quiz(quiz_id):
     """
     Manually expire a specific quiz
@@ -247,7 +247,7 @@ def get_users_with_ongoing_attempts(quiz_id):
 
 # Additional utility tasks
 
-@celery_app.task
+@celery.task
 def generate_quiz_report():
     """
     Generate daily quiz activity report
