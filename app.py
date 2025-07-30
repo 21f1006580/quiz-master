@@ -68,7 +68,8 @@ def create_app():
     def health_check():
         return jsonify({
             'status': 'healthy',
-            'timestamp': datetime.utcnow().isoformat()
+            'timestamp': datetime.utcnow().isoformat(),
+            'message': 'Quiz Master API is running'
         })
     
     # Add Celery routes for monitoring
@@ -162,4 +163,8 @@ app = create_app()
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    print("🚀 Starting Quiz Master API on port 5001...")
+    print("📱 Frontend: http://localhost:8080")
+    print("🔧 Backend API: http://localhost:5001")
+    print("👤 Admin Login: admin@gmail.com / admin123")
+    app.run(debug=True, host='0.0.0.0', port=5001)

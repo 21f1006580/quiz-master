@@ -94,7 +94,7 @@ set FRONTEND_PID=%ERRORLEVEL%
 
 echo ✅ Quiz Master is starting up!
 echo 📱 Frontend: http://localhost:8080
-echo 🔧 Backend: http://localhost:5000
+echo 🔧 Backend: http://localhost:5001
 if "%REDIS_AVAILABLE%"=="true" (
     echo 🔧 Celery Worker: Running
     echo ⏰ Celery Beat: Running

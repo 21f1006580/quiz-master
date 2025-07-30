@@ -1,42 +1,36 @@
 #!/bin/bash
-
 # Quiz Master Startup Script for Mac/Linux
 
 echo "🚀 Starting Quiz Master Application..."
 
-# Function to check if command exists
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
-}
-
 # Check for required tools
-if ! command_exists python3; then
+if ! command -v python3 &> /dev/null; then
     echo "❌ Python 3 is required but not installed."
     echo "Please install Python 3.8+ from https://python.org"
     exit 1
 fi
 
-if ! command_exists node; then
+if ! command -v node &> /dev/null; then
     echo "❌ Node.js is required but not installed."
     echo "Please install Node.js 16+ from https://nodejs.org"
     exit 1
 fi
 
-if ! command_exists npm; then
+if ! command -v npm &> /dev/null; then
     echo "❌ npm is required but not installed."
     echo "Please install Node.js 16+ which includes npm"
     exit 1
 fi
 
 # Check if Redis is running (required for Celery)
-if ! command_exists redis-cli; then
+if ! command -v redis-cli &> /dev/null; then
     echo "⚠️  Redis not found. Please install Redis for background tasks."
     echo "On Mac: brew install redis"
     echo "On Ubuntu: sudo apt-get install redis-server"
     echo "Starting without background tasks..."
     REDIS_AVAILABLE=false
 else
-    if redis-cli ping >/dev/null 2>&1; then
+    if redis-cli ping &> /dev/null; then
         echo "✅ Redis is running"
         REDIS_AVAILABLE=true
     else
@@ -48,18 +42,7 @@ fi
 # Check if virtual environment exists
 if [ ! -d "venv" ]; then
     echo "📦 Creating virtual environment..."
-    # Try different Python versions
-    if command_exists python3.12; then
-        python3.12 -m venv venv
-    elif command_exists python3.11; then
-        python3.11 -m venv venv
-    elif command_exists python3.10; then
-        python3.10 -m venv venv
-    elif command_exists python3.9; then
-        python3.9 -m venv venv
-    else
-        python3 -m venv venv
-    fi
+    python3 -m venv venv
 fi
 
 # Activate virtual environment and install dependencies
@@ -70,13 +53,13 @@ pip install -r requirements.txt
 # Seed database if it doesn't exist
 if [ ! -f "quizmaster.db" ]; then
     echo "🌱 Seeding database with sample data..."
-    python seed_data.py
+    python3 seed_data.py
 fi
 
 # Start Flask backend in background
 echo "🐍 Starting Flask backend..."
 source venv/bin/activate
-python app.py &
+python3 app.py &
 BACKEND_PID=$!
 
 # Wait a moment for backend to start
@@ -86,12 +69,12 @@ sleep 3
 if [ "$REDIS_AVAILABLE" = true ]; then
     echo "🔧 Starting Celery worker..."
     source venv/bin/activate
-    python celery_worker.py &
+    python3 celery_worker.py &
     WORKER_PID=$!
     
     echo "⏰ Starting Celery Beat scheduler..."
     source venv/bin/activate
-    python celery_beat.py &
+    python3 celery_beat.py &
     BEAT_PID=$!
 else
     WORKER_PID=""
@@ -111,7 +94,7 @@ FRONTEND_PID=$!
 
 echo "✅ Quiz Master is starting up!"
 echo "📱 Frontend: http://localhost:8080"
-echo "🔧 Backend: http://localhost:5000"
+echo "🔧 Backend: http://localhost:5001"
 if [ "$REDIS_AVAILABLE" = true ]; then
     echo "🔧 Celery Worker: Running"
     echo "⏰ Celery Beat: Running"
@@ -122,7 +105,6 @@ echo "👤 Admin Login: admin@gmail.com / admin123"
 echo ""
 echo "Press Ctrl+C to stop all servers"
 
-# Function to cleanup background processes
 cleanup() {
     echo "\n🛑 Shutting down servers..."
     kill $BACKEND_PID 2>/dev/null
@@ -137,8 +119,8 @@ cleanup() {
     exit 0
 }
 
-# Set trap to cleanup on script exit
+# Set up signal handlers
 trap cleanup SIGINT SIGTERM
 
-# Wait for user to stop
+# Wait for all background processes
 wait
