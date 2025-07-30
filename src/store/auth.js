@@ -44,7 +44,8 @@ const mutations = {
     state.user = null;
     state.token = null;
     state.isAuthenticated = false;
-    apiHelpers.removeAuthToken();
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('user');
   }
 };
 
@@ -149,7 +150,6 @@ const actions = {
     commit('CLEAR_ERROR');
   },
   
-  // Initialize auth state from localStorage
   initAuth({ commit }) {
     const token = localStorage.getItem('access_token');
     const user = JSON.parse(localStorage.getItem('user') || 'null');

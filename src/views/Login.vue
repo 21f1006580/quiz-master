@@ -30,7 +30,7 @@
       <div class="separator"></div>
 
       <p class="center-text">
-        <router-link to="/register">Don’t have an account? Register</router-link>
+        <router-link to="/register">Don't have an account? Register</router-link>
       </p>
 
       <p v-if="error" class="text-danger">{{ error }}</p>
@@ -39,6 +39,8 @@
 </template>
 
 <script>
+import { authAPI } from '@/services/api'
+
 export default {
   name: 'Login',
   data() {
@@ -64,36 +66,27 @@ export default {
 
       if (this.validationErrors.length === 0) {
         try {
-          const response = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              user_name: this.identifier,
-              password: this.password,
-            }),
-            credentials: 'include', // include cookies if backend sets refresh tokens via cookies
+          // Use Vuex store login action
+          const result = await this.$store.dispatch('auth/login', {
+            user_name: this.identifier,
+            password: this.password,
           })
 
-          if (response.ok) {
-            const data = await response.json()
-            localStorage.setItem('access_token', data.access_token)
-
-            // Store user info
-            localStorage.setItem('user', JSON.stringify(data.user))
-            localStorage.setItem('access_token', data.access_token)
-
-            // Check if user is admin
-            if (data.user.is_admin) {
+          if (result.success) {
+            // Check if user is admin and redirect accordingly
+            if (result.user.is_admin) {
+              console.log('Admin login successful, redirecting to admin dashboard')
               this.$router.push('/admin')
             } else {
+              console.log('User login successful, redirecting to user dashboard')
               this.$router.push('/dashboard')
             }
           } else {
-            const errorData = await response.json()
-            this.error = errorData.message || 'An error occurred during login.'
+            this.error = result.error || 'Login failed'
           }
         } catch (err) {
-          this.error = 'An error occurred: ' + err.message
+          console.error('Login error:', err)
+          this.error = 'An error occurred during login.'
         } finally {
           this.isLoading = false
         }
