@@ -352,6 +352,7 @@ def submit_quiz(quiz_id):
             ).first()
             
             if existing_attempt and not quiz.allow_multiple_attempts:
+                print(f"❌ Quiz expired and user {user.user_id} already submitted quiz {quiz_id}")
                 return jsonify({'error': 'Quiz has expired and you have already submitted'}), 403
             
             # Allow submission with warning if quiz just expired
@@ -368,6 +369,7 @@ def submit_quiz(quiz_id):
             ).first()
             
             if existing_score:
+                print(f"❌ User {user.user_id} already attempted quiz {quiz_id}")
                 return jsonify({'error': 'You have already attempted this quiz'}), 403
 
         # Process submission (existing logic)

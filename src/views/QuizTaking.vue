@@ -98,6 +98,33 @@
               </span>
             </label>
           </div>
+          
+          <!-- Navigation buttons -->
+          <div class="navigation-buttons">
+            <button 
+              @click="previousQuestion" 
+              :disabled="currentQuestionIndex === 0"
+              class="btn-secondary"
+            >
+              <i class="fas fa-arrow-left"></i> Previous
+            </button>
+            
+            <button 
+              @click="nextQuestion" 
+              :disabled="currentQuestionIndex === questions.length - 1"
+              class="btn-secondary"
+            >
+              Next <i class="fas fa-arrow-right"></i>
+            </button>
+            
+            <button 
+              @click="submitAnswers" 
+              :disabled="submitting"
+              class="btn-primary submit-btn"
+            >
+              <i class="fas fa-paper-plane"></i> Submit Quiz
+            </button>
+          </div>
 
           <!-- Instant Feedback Display -->
           <div v-if="currentQuestionFeedback" class="feedback-panel" 
@@ -228,6 +255,9 @@ export default {
       timeUntilExpiry: null,
       showExpiryWarning: false,
       autoExpireEnabled: false,
+      
+      // Submission state
+      submitting: false,
       
       error: null
     }
@@ -468,14 +498,24 @@ export default {
         return
       }
       
-      // Move to next question after 2 seconds
-      setTimeout(() => {
-        this.moveToNextQuestionOrSubmit()
-      }, 2000)
+      // Don't auto-advance - let user control navigation
+      // Only auto-advance if it's the last question and user wants to submit
     },
 
     async submitAnswers() {
+      // Prevent multiple submissions
+      if (this.submitting) {
+        console.log("Submission already in progress...")
+        return
+      }
+      
+      // Confirm submission
+      if (!confirm('Are you sure you want to submit your quiz? You cannot change your answers after submission.')) {
+        return
+      }
+      
       try {
+        this.submitting = true
         console.log("Submitting answers with expiry check...")
         
         const token = localStorage.getItem('access_token')
@@ -518,6 +558,20 @@ export default {
       } catch (error) {
         console.error('Error submitting quiz:', error)
         alert('Error submitting quiz. Please try again.')
+      } finally {
+        this.submitting = false
+      }
+    },
+
+    previousQuestion() {
+      if (this.currentQuestionIndex > 0) {
+        this.currentQuestionIndex--
+      }
+    },
+
+    nextQuestion() {
+      if (this.currentQuestionIndex < this.questions.length - 1) {
+        this.currentQuestionIndex++
       }
     },
 
@@ -906,6 +960,44 @@ export default {
 .score-display p {
   color: #666;
   font-size: 1.1rem;
+}
+
+/* Navigation Buttons */
+.navigation-buttons {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+}
+
+.navigation-buttons button {
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.navigation-buttons button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.submit-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-weight: bold;
+}
+
+.submit-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
 
 /* Responsive Design */
