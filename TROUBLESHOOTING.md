@@ -45,8 +45,11 @@ python debug_jwt.py
 
 #### Use Debug Scripts
 ```bash
-# Windows
+# Windows (Batch)
 start_debug.bat
+
+# Windows (PowerShell)
+.\start_debug.ps1
 
 # Mac/Linux
 chmod +x start_debug.sh
@@ -188,9 +191,10 @@ python --version  # Should be 3.8+
 ### 8. Platform-Specific Issues
 
 #### Windows
-- Use `start_debug.bat` instead of `start.bat`
+- Use `start_debug.bat` (Batch) or `start_debug.ps1` (PowerShell) instead of `start.bat`
 - Ensure Python and Node.js are in PATH
 - Run as Administrator if needed
+- For PowerShell execution policy issues, run: `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`
 
 #### Mac/Linux
 - Use `start_debug.sh` instead of `start.sh`
