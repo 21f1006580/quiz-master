@@ -119,7 +119,7 @@
             </button>
             
             <button 
-              @click="showConfirmModal" 
+              @click="openConfirmModal" 
               :disabled="submitting"
               class="btn-primary submit-btn"
             >
@@ -249,6 +249,8 @@ export default {
       // Timer management
       questionTimeLeft: 30,
       questionTimer: null,
+      quizTimeLeft: 0,
+      quizTimer: null,
       timerMode: 'quiz', // 'quiz' or 'question'
       
       // Auto-expiry monitoring
@@ -317,12 +319,8 @@ export default {
     },
 
     timeLeft() {
-      // Calculate remaining time based on quiz duration
-      if (!this.quizDetails || !this.quizDetails.duration) return 1800
-      
-      const totalSeconds = this.quizDetails.duration * 60
-      const elapsedSeconds = 0 // For now, assume no time has elapsed
-      return Math.max(0, totalSeconds - elapsedSeconds)
+      // Return the actual quiz time left
+      return this.quizTimeLeft || 0
     }
   },
 
@@ -390,8 +388,9 @@ export default {
             this.startExpiryMonitoring()
           }
           
-          // Only start question timer if we have questions
+          // Start quiz timer and question timer if we have questions
           if (this.questions.length > 0) {
+            this.startQuizTimer()
             this.startQuestionTimer()
           }
           
@@ -516,6 +515,23 @@ export default {
       alert(`⚠️ Warning: This quiz will expire in ${timeLeft}!\n\nPlease submit your answers soon.`)
     },
 
+    startQuizTimer() {
+      if (!this.quizDetails || !this.quizDetails.duration) return
+      
+      this.quizTimeLeft = this.quizDetails.duration * 60 // Convert minutes to seconds
+      
+      this.quizTimer = setInterval(() => {
+        if (this.quizTimeLeft > 0) {
+          this.quizTimeLeft--
+        } else {
+          // Quiz time expired
+          this.clearAllTimers()
+          alert('Quiz time has expired! Your answers will be submitted automatically.')
+          this.submitAnswers()
+        }
+      }, 1000)
+    },
+
     startQuestionTimer() {
       this.questionTimeLeft = 30
       
@@ -543,6 +559,10 @@ export default {
       if (this.questionTimer) {
         clearInterval(this.questionTimer)
         this.questionTimer = null
+      }
+      if (this.quizTimer) {
+        clearInterval(this.quizTimer)
+        this.quizTimer = null
       }
       if (this.expiryCheckInterval) {
         clearInterval(this.expiryCheckInterval)
