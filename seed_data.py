@@ -4,13 +4,15 @@ Seed data script for Quiz Master application
 """
 
 from app import create_app
-from backend.models.models import db, User, Subject, Chapter, Quiz, Question, Score
-from backend.models.models import User, Subject, Chapter, Quiz, Question, Score
+from backend.models.models import db, User, Subject, Chapter, Quiz, Question, Score, create_admin_user
 from datetime import datetime, timedelta
 
 def seed_data():
     app = create_app()
     with app.app_context():
+        # Create admin user first
+        create_admin_user()
+        
         # Clear existing data (except admin user)
         Question.query.delete()
         Quiz.query.delete()

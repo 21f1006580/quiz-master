@@ -6,6 +6,9 @@ from backend.models.models import db, User, Subject, Chapter, Quiz, Question, Sc
 from datetime import datetime, timedelta
 from sqlalchemy import func
 import traceback
+from utils.decorators import user_required
+from backend.api.notification_tasks import export_user_quiz_csv
+from backend.cache import cache_decorator, CacheKeys, CacheExpiry, invalidate_user_cache
 
 user_bp = Blueprint('user', __name__, url_prefix='/api/user')
 
@@ -662,3 +665,97 @@ def debug_schema():
     else:
         print("Table not found")
         return jsonify({'error': 'Table not found in metadata'})
+
+@user_bp.route('/export/csv', methods=['POST'])
+@user_required
+def trigger_user_csv_export():
+    """Trigger CSV export for user"""
+    try:
+        current_user_name = get_jwt_identity()
+        user = User.query.filter_by(user_name=current_user_name).first()
+        
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Start async task
+        task = export_user_quiz_csv.delay(user.user_id)
+        
+        return jsonify({
+            'success': True,
+            'message': 'CSV export started. You will receive an email when complete.',
+            'task_id': task.id
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@user_bp.route('/stats', methods=['GET'])
+@user_required
+@cache_decorator(CacheKeys.USER_DASHBOARD, CacheExpiry.MEDIUM)
+def get_user_stats():
+    """Get user dashboard statistics"""
+    try:
+        current_user_name = get_jwt_identity()
+        user = User.query.filter_by(user_name=current_user_name).first()
+        
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Get user's scores
+        scores = Score.query.filter_by(user_id=user.user_id).all()
+        
+        if scores:
+            total_quizzes = len(scores)
+            avg_score = sum(s.total_score for s in scores) / total_quizzes
+            best_score = max(s.total_score for s in scores)
+            total_time = sum(s.time_taken or 0 for s in scores)
+            
+            # Recent activity (last 7 days)
+            week_ago = datetime.utcnow() - timedelta(days=7)
+            recent_scores = [s for s in scores if s.attempt_datetime >= week_ago]
+            recent_quizzes = len(recent_scores)
+            
+            # Subject-wise performance
+            subject_stats = {}
+            for score in scores:
+                quiz = score.quiz
+                chapter = quiz.chapter
+                subject_name = chapter.subject.name
+                
+                if subject_name not in subject_stats:
+                    subject_stats[subject_name] = {
+                        'quizzes_taken': 0,
+                        'total_score': 0,
+                        'best_score': 0
+                    }
+                
+                subject_stats[subject_name]['quizzes_taken'] += 1
+                subject_stats[subject_name]['total_score'] += score.total_score
+                subject_stats[subject_name]['best_score'] = max(
+                    subject_stats[subject_name]['best_score'],
+                    score.total_score
+                )
+            
+            # Calculate averages
+            for subject in subject_stats.values():
+                subject['avg_score'] = round(subject['total_score'] / subject['quizzes_taken'], 2)
+                subject['total_score'] = round(subject['total_score'], 2)
+        else:
+            total_quizzes = 0
+            avg_score = 0
+            best_score = 0
+            total_time = 0
+            recent_quizzes = 0
+            subject_stats = {}
+        
+        stats = {
+            'total_quizzes': total_quizzes,
+            'avg_score': round(avg_score, 2),
+            'best_score': best_score,
+            'total_time_minutes': round(total_time / 60, 2),
+            'recent_quizzes': recent_quizzes,
+            'subject_stats': subject_stats
+        }
+        
+        return jsonify(stats)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

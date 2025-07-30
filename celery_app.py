@@ -10,7 +10,7 @@ def make_celery(app):
         app.import_name,
         backend=app.config.get('result_backend', 'redis://localhost:6379/0'),
         broker=app.config.get('broker_url', 'redis://localhost:6379/0'),
-        include=['backend.api.quiz_tasks']  # Include our task modules
+        include=['backend.api.quiz_tasks', 'backend.api.notification_tasks']  # Include our task modules
     )
     
     # Update configuration from Flask app
@@ -32,6 +32,16 @@ def make_celery(app):
         'daily-quiz-cleanup': {
             'task': 'backend.api.quiz_tasks.daily_cleanup',
             'schedule': crontab(hour=2, minute=0),
+        },
+        # Daily reminders at 6 PM
+        'daily-reminders': {
+            'task': 'backend.api.notification_tasks.send_daily_reminders',
+            'schedule': crontab(hour=18, minute=0),  # 6 PM
+        },
+        # Monthly reports on 1st of every month at 9 AM
+        'monthly-reports': {
+            'task': 'backend.api.notification_tasks.generate_monthly_report',
+            'schedule': crontab(day_of_month=1, hour=9, minute=0),
         }
     }
     

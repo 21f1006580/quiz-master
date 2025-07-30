@@ -1,11 +1,15 @@
-from flask import Flask
+from flask import Flask, jsonify
+from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager
 from flask_cors import CORS
-
-from backend.models.models import db, create_admin_user
+from datetime import datetime, timedelta
+from backend.models.models import db
 from backend.routes.auth_routes import auth_bp
-from backend.routes.admin_routes import admin_bp
 from backend.routes.user_routes import user_bp
+from backend.routes.admin_routes import admin_bp
+from backend.cache import init_cache
+from celery_app import make_celery
+import os
 
 # Import Celery
 from celery_app import make_celery
@@ -20,43 +24,52 @@ def create_app():
     
     app = Flask(__name__)
     
-    # Database configuration
-    basedir = os.path.abspath(os.path.dirname(__file__))
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(basedir, "quizmaster.db")}'
-    print(f"Database URI: {app.config['SQLALCHEMY_DATABASE_URI']}")
+    # Configuration
+    app.config['SECRET_KEY'] = 'your-secret-key-here'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///quizmaster.db'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['SECRET_KEY'] = 'sudar-secret-key-change-in-production'  
-    app.config['JWT_SECRET_KEY'] = 'jwt-secret-key-change-in-production'
-    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = False  # Tokens don't expire (change for production)
-
+    app.config['JWT_SECRET_KEY'] = 'jwt-secret-key'
+    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)
+    
+    # Redis configuration for Celery and caching
     app.config['broker_url'] = 'redis://localhost:6379/0'
     app.config['result_backend'] = 'redis://localhost:6379/0'
+    app.config['REDIS_HOST'] = 'localhost'
+    app.config['REDIS_PORT'] = 6379
+    app.config['REDIS_CACHE_DB'] = 1
     
-    # Initialize JWT
-    jwt = JWTManager(app)
-    
-    # Initialize CORS
-    CORS(app, supports_credentials=True, resources={
-        r"/api/*": {
-            "origins": ["http://localhost:8080", "http://127.0.0.1:8080"],
-            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization"]
-        }
-    })
-    
-    # Initialize database with app
+    # Initialize extensions
     db.init_app(app)
+    jwt = JWTManager(app)
+    CORS(app)
+    
+    # Initialize cache
+    init_cache(app)
+    
+    # Register blueprints
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(user_bp)
+    app.register_blueprint(admin_bp)
     
     # Create Celery instance
     celery = make_celery(app)
     
-    # Store celery instance in app for easy access
-    app.celery = celery
+    # Error handlers
+    @app.errorhandler(404)
+    def not_found(error):
+        return jsonify({'error': 'Not found'}), 404
     
-    # Register blueprints
-    app.register_blueprint(auth_bp, url_prefix='/api/auth')
-    app.register_blueprint(admin_bp)
-    app.register_blueprint(user_bp)
+    @app.errorhandler(500)
+    def internal_error(error):
+        return jsonify({'error': 'Internal server error'}), 500
+    
+    # Health check endpoint
+    @app.route('/health')
+    def health_check():
+        return jsonify({
+            'status': 'healthy',
+            'timestamp': datetime.utcnow().isoformat()
+        })
     
     # Add Celery routes for monitoring
     @app.route('/api/admin/celery/status')
@@ -68,25 +81,25 @@ def create_app():
             stats = inspect.stats()
             active_tasks = inspect.active()
             
-            return {
+            return jsonify({
                 'celery_running': bool(stats),
                 'workers': stats or {},
                 'active_tasks': active_tasks or {},
                 'broker_url': app.config['broker_url']
-            }
+            })
         except Exception as e:
-            return {
+            return jsonify({
                 'celery_running': False,
                 'error': str(e)
-            }
+            })
     
     @app.route('/api/admin/celery/tasks')
     def list_celery_tasks():
         """List available Celery tasks"""
-        return {
+        return jsonify({
             'available_tasks': list(celery.tasks.keys()),
             'scheduled_tasks': list(celery.conf.beat_schedule.keys())
-        }
+        })
     
     # Add manual task triggers for admins
     @app.route('/api/admin/quiz/expire-check', methods=['POST'])
@@ -97,11 +110,11 @@ def create_app():
         # Run task asynchronously
         task = check_and_expire_quizzes.delay()
         
-        return {
+        return jsonify({
             'message': 'Quiz expiry check started',
             'task_id': task.id,
             'status': 'PENDING'
-        }
+        })
     
     @app.route('/api/admin/quiz/expire/<int:quiz_id>', methods=['POST'])
     def manual_expire_quiz(quiz_id):
@@ -110,11 +123,11 @@ def create_app():
         
         task = expire_single_quiz.delay(quiz_id)
         
-        return {
+        return jsonify({
             'message': f'Quiz {quiz_id} expiry started',
             'task_id': task.id,
             'status': 'PENDING'
-        }
+        })
     
     @app.route('/api/admin/task/<task_id>/status')
     def task_status(task_id):
@@ -139,17 +152,14 @@ def create_app():
                 'status': str(task.info)
             }
         
-        return response
+        return jsonify(response)
     
-    with app.app_context():
-        db.create_all()
-        create_admin_user()
-        
     return app
 
+# Create the app instance
+app = create_app()
+
 if __name__ == '__main__':
-    app = create_app()
-    # Now app.celery exists because we created it in create_app()
-    celery = app.celery 
-    
+    with app.app_context():
+        db.create_all()
     app.run(debug=True, host='0.0.0.0', port=5000)

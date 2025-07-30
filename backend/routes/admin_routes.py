@@ -3,21 +3,259 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from functools import wraps
-from backend.models.models import db, User, Subject, Chapter, Quiz, Question
-from datetime import datetime
+from backend.models.models import db, User, Subject, Chapter, Quiz, Question, Score
+from backend.cache import cache_decorator, CacheKeys, CacheExpiry, invalidate_admin_cache
+from datetime import datetime, timedelta
+from sqlalchemy import or_
+from backend.api.notification_tasks import export_admin_user_csv
+from utils.decorators import admin_required
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
 
-def admin_required(f):
-    @wraps(f)
-    @jwt_required()
-    def decorated_function(*args, **kwargs):
-        current_user_name = get_jwt_identity()
-        user = User.query.filter_by(user_name=current_user_name).first()
-        if not user or not user.is_admin:
-            return jsonify({'error': 'Admin access required'}), 403
-        return f(*args, **kwargs)
-    return decorated_function
+# ============= SEARCH FUNCTIONALITY =============
+
+@admin_bp.route('/search', methods=['GET'])
+@admin_required
+def search_admin():
+    """Search users, subjects, and quizzes"""
+    query = request.args.get('q', '').strip()
+    search_type = request.args.get('type', 'all')  # all, users, subjects, quizzes
+    
+    if not query:
+        return jsonify({'error': 'Search query is required'}), 400
+    
+    results = {}
+    
+    if search_type in ['all', 'users']:
+        users = User.query.filter(
+            or_(
+                User.user_name.ilike(f'%{query}%'),
+                User.full_name.ilike(f'%{query}%')
+            )
+        ).limit(10).all()
+        results['users'] = [{
+            'user_id': user.user_id,
+            'user_name': user.user_name,
+            'full_name': user.full_name,
+            'is_admin': user.is_admin
+        } for user in users]
+    
+    if search_type in ['all', 'subjects']:
+        subjects = Subject.query.filter(
+            Subject.name.ilike(f'%{query}%')
+        ).limit(10).all()
+        results['subjects'] = [{
+            'subject_id': subject.subject_id,
+            'name': subject.name,
+            'description': subject.description
+        } for subject in subjects]
+    
+    if search_type in ['all', 'quizzes']:
+        quizzes = Quiz.query.filter(
+            Quiz.title.ilike(f'%{query}%')
+        ).limit(10).all()
+        results['quizzes'] = [{
+            'quiz_id': quiz.quiz_id,
+            'title': quiz.title,
+            'date_of_quiz': quiz.date_of_quiz.isoformat() if quiz.date_of_quiz else None,
+            'duration': quiz.time_duration,
+            'is_active': quiz.is_active
+        } for quiz in quizzes]
+    
+    return jsonify(results)
+
+@admin_bp.route('/search/users', methods=['GET'])
+@admin_required
+def search_users():
+    """Search users by name or email"""
+    try:
+        query = request.args.get('q', '').strip()
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        
+        if not query:
+            return jsonify({'error': 'Search query is required'}), 400
+        
+        users = User.query.filter(
+            User.is_admin == False,
+            (User.user_name.contains(query) | 
+             User.full_name.contains(query))
+        ).paginate(page=page, per_page=per_page, error_out=False)
+        
+        return jsonify({
+            'users': [user.to_dict() for user in users.items],
+            'total': users.total,
+            'pages': users.pages,
+            'current_page': page
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/search/subjects', methods=['GET'])
+@admin_required
+def search_subjects():
+    """Search subjects by name"""
+    try:
+        query = request.args.get('q', '').strip()
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        
+        if not query:
+            return jsonify({'error': 'Search query is required'}), 400
+        
+        subjects = Subject.query.filter(
+            Subject.name.contains(query)
+        ).paginate(page=page, per_page=per_page, error_out=False)
+        
+        return jsonify({
+            'subjects': [subject.to_dict() for subject in subjects.items],
+            'total': subjects.total,
+            'pages': subjects.pages,
+            'current_page': page
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/search/quizzes', methods=['GET'])
+@admin_required
+def search_quizzes():
+    """Search quizzes by title"""
+    try:
+        query = request.args.get('q', '').strip()
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        
+        if not query:
+            return jsonify({'error': 'Search query is required'}), 400
+        
+        quizzes = Quiz.query.filter(
+            Quiz.title.contains(query)
+        ).paginate(page=page, per_page=per_page, error_out=False)
+        
+        return jsonify({
+            'quizzes': [quiz.to_dict() for quiz in quizzes.items],
+            'total': quizzes.total,
+            'pages': quizzes.pages,
+            'current_page': page
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# ============= CSV EXPORT FUNCTIONALITY =============
+
+@admin_bp.route('/export/users-csv', methods=['POST'])
+@admin_required
+def trigger_user_csv_export():
+    """Trigger CSV export of all user performance data"""
+    try:
+        # Start the async task
+        task = export_admin_user_csv.delay()
+        
+        return jsonify({
+            'message': 'CSV export started',
+            'task_id': task.id,
+            'status': 'PENDING'
+        }), 202
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/export/quiz-csv/<int:quiz_id>', methods=['POST'])
+@admin_required
+def trigger_quiz_csv_export(quiz_id):
+    """Trigger CSV export of specific quiz results"""
+    try:
+        quiz = Quiz.query.get_or_404(quiz_id)
+        
+        # Get all scores for this quiz
+        scores = db.session.query(Score, User).join(
+            User, Score.user_id == User.user_id
+        ).filter(
+            Score.quiz_id == quiz_id
+        ).all()
+        
+        # Create CSV data
+        import csv
+        import io
+        
+        csv_data = io.StringIO()
+        csv_writer = csv.writer(csv_data)
+        
+        # Write header
+        csv_writer.writerow([
+            'User ID', 'Username', 'Full Name', 'Score (%)',
+            'Correct Answers', 'Total Questions', 'Time Taken (seconds)',
+            'Attempt Date'
+        ])
+        
+        # Write data
+        for score, user in scores:
+            csv_writer.writerow([
+                user.user_id,
+                user.user_name,
+                user.full_name,
+                score.total_score,
+                score.correct_answers,
+                score.total_questions,
+                score.time_taken or 0,
+                score.attempt_datetime.strftime('%Y-%m-%d %H:%M')
+            ])
+        
+        # Return CSV data
+        from flask import Response
+        output = csv_data.getvalue()
+        
+        return Response(
+            output,
+            mimetype='text/csv',
+            headers={'Content-Disposition': f'attachment; filename=quiz_{quiz_id}_results.csv'}
+        )
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/export/csv', methods=['POST'])
+@admin_required
+def trigger_csv_export():
+    """Trigger CSV export for admin"""
+    try:
+        # Start async task
+        task = export_admin_user_csv.delay()
+        
+        return jsonify({
+            'success': True,
+            'message': 'CSV export started. You will receive an email when complete.',
+            'task_id': task.id
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# ============= CACHE MANAGEMENT =============
+
+@admin_bp.route('/cache/stats', methods=['GET'])
+@admin_required
+def get_cache_stats():
+    """Get cache statistics"""
+    try:
+        from backend.cache import get_cache_stats
+        stats = get_cache_stats()
+        return jsonify(stats), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@admin_bp.route('/cache/clear', methods=['POST'])
+@admin_required
+def clear_cache():
+    """Clear all cache"""
+    try:
+        from backend.cache import clear_cache_pattern
+        clear_cache_pattern('*')
+        return jsonify({'message': 'Cache cleared successfully'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # ============= SUBJECTS CRUD =============
 
@@ -761,6 +999,56 @@ def get_dashboard_stats():
         'total_questions': total_questions
     })
 
+@admin_bp.route('/stats', methods=['GET'])
+@admin_required
+@cache_decorator(CacheKeys.ADMIN_STATS, CacheExpiry.MEDIUM)
+def get_admin_stats():
+    """Get admin dashboard statistics"""
+    try:
+        # Total counts
+        total_users = User.query.filter_by(is_admin=False).count()
+        total_subjects = Subject.query.count()
+        total_quizzes = Quiz.query.count()
+        total_questions = Question.query.count()
+        
+        # Recent activity
+        recent_quizzes = Quiz.query.filter(
+            Quiz.created_at >= datetime.utcnow() - timedelta(days=7)
+        ).count()
+        
+        # Active quizzes
+        active_quizzes = Quiz.query.filter_by(is_active=True).count()
+        
+        # Top performing users
+        top_users = db.session.query(
+            User.user_name,
+            User.full_name,
+            db.func.avg(Score.total_score).label('avg_score'),
+            db.func.count(Score.score_id).label('quiz_count')
+        ).join(Score, User.user_id == Score.user_id).filter(
+            User.is_admin == False
+        ).group_by(User.user_id).order_by(
+            db.func.avg(Score.total_score).desc()
+        ).limit(5).all()
+        
+        stats = {
+            'total_users': total_users,
+            'total_subjects': total_subjects,
+            'total_quizzes': total_quizzes,
+            'total_questions': total_questions,
+            'recent_quizzes': recent_quizzes,
+            'active_quizzes': active_quizzes,
+            'top_users': [{
+                'user_name': user.user_name,
+                'full_name': user.full_name,
+                'avg_score': round(float(user.avg_score), 2),
+                'quiz_count': user.quiz_count
+            } for user in top_users]
+        }
+        
+        return jsonify(stats)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # Admin route to manually trigger expiry check
 @admin_bp.route('/quizzes/expire-check', methods=['POST'])
