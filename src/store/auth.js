@@ -142,8 +142,17 @@ const actions = {
     }
   },
   
-  logout({ commit }) {
-    commit('LOGOUT');
+  async logout({ commit }) {
+    try {
+      // Call logout API endpoint
+      await authAPI.logout();
+    } catch (error) {
+      // Even if the API call fails, we still want to logout locally
+      console.warn('Logout API call failed, but proceeding with local logout:', error);
+    } finally {
+      // Always clear local state regardless of API response
+      commit('LOGOUT');
+    }
   },
   
   clearError({ commit }) {

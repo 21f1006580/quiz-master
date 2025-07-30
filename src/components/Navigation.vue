@@ -33,8 +33,8 @@
       </div>
       
       <div class="nav-user">
-        <span class="user-name">{{ user.full_name }}</span>
-        <button @click="logout" class="btn-logout">Logout</button>
+        <span class="user-name">{{ userFullName }}</span>
+        <button @click="handleLogout" class="btn-logout">Logout</button>
       </div>
     </div>
   </nav>
@@ -43,34 +43,38 @@
 <script>
 export default {
   name: 'Navigation',
-  data() {
-    return {
-      user: {},
-      isAdmin: false
-    }
-  },
   computed: {
     showNavigation() {
       // Don't show navigation on login/register pages
       return !['login', 'register'].includes(this.$route.name)
+    },
+    user() {
+      return this.$store.getters['auth/user']
+    },
+    isAdmin() {
+      return this.$store.getters['auth/isAdmin']
+    },
+    userFullName() {
+      return this.$store.getters['auth/userFullName']
     }
   },
-  created() {
-    this.loadUserData()
-  },
   methods: {
-    loadUserData() {
-      const userData = localStorage.getItem('user')
-      if (userData) {
-        this.user = JSON.parse(userData)
-        this.isAdmin = this.user.is_admin || false
+    async handleLogout() {
+      try {
+        // Dispatch logout action to Vuex store
+        this.$store.dispatch('auth/logout')
+        
+        // Redirect to login page
+        this.$router.push('/login')
+        
+        console.log('Logout successful')
+      } catch (error) {
+        console.error('Logout error:', error)
+        // Even if there's an error, clear local storage and redirect
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('user')
+        this.$router.push('/login')
       }
-    },
-    
-    logout() {
-      localStorage.removeItem('access_token')
-      localStorage.removeItem('user')
-      this.$router.push('/login')
     }
   }
 }
@@ -99,52 +103,26 @@ export default {
   margin: 0;
   font-size: 1.5rem;
   font-weight: 700;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .nav-menu {
   display: flex;
-  gap: 1.5rem;
-  align-items: center;
+  gap: 2rem;
 }
 
 .nav-link {
-  color: #ffffff;
+  color: rgba(255, 255, 255, 0.8);
   text-decoration: none;
   font-weight: 500;
+  transition: color 0.3s ease;
   padding: 0.5rem 1rem;
-  border-radius: 25px;
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
+  border-radius: 5px;
 }
 
-.nav-link::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: rgba(255, 255, 255, 0.1);
-  transition: left 0.3s ease;
-  z-index: -1;
-}
-
-.nav-link:hover::before {
-  left: 0;
-}
-
-.nav-link:hover {
-  color: #ffffff;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-}
-
+.nav-link:hover,
 .nav-link.active {
-  background: rgba(255, 255, 255, 0.2);
   color: #ffffff;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .nav-user {
@@ -156,68 +134,37 @@ export default {
 .user-name {
   color: #ffffff;
   font-weight: 500;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .btn-logout {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.2);
   color: #ffffff;
   border: 1px solid rgba(255, 255, 255, 0.3);
   padding: 0.5rem 1rem;
-  border-radius: 25px;
+  border-radius: 5px;
   cursor: pointer;
   font-weight: 500;
   transition: all 0.3s ease;
-  backdrop-filter: blur(10px);
 }
 
 .btn-logout:hover {
-  background: rgba(255, 255, 255, 0.25);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-.btn-logout:active {
-  transform: translateY(0);
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
 }
 
 @media (max-width: 768px) {
   .nav-container {
     flex-direction: column;
     gap: 1rem;
-    padding: 1rem;
   }
   
   .nav-menu {
     flex-wrap: wrap;
     justify-content: center;
-    gap: 1rem;
   }
   
   .nav-user {
-    flex-direction: column;
-    gap: 0.5rem;
-    text-align: center;
-  }
-  
-  .nav-brand h2 {
-    font-size: 1.3rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .nav-container {
-    padding: 0.75rem;
-  }
-  
-  .nav-link {
-    padding: 0.4rem 0.8rem;
-    font-size: 0.9rem;
-  }
-  
-  .btn-logout {
-    padding: 0.4rem 0.8rem;
-    font-size: 0.9rem;
+    justify-content: center;
   }
 }
 </style>

@@ -199,6 +199,24 @@ def admin_login():
     except Exception as e:
         return jsonify({'error': 'Admin login failed', 'details': str(e)}), 500
 
+@auth_bp.route('/logout', methods=['POST'])
+@jwt_required()
+def logout():
+    """Logout user - invalidate token on server side if needed"""
+    try:
+        # In a more sophisticated setup, you might want to blacklist the token
+        # For now, we'll just return a success message
+        # The client will handle clearing the token from localStorage
+        
+        return jsonify({
+            'message': 'Logout successful'
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'error': 'Logout failed',
+            'details': str(e)
+        }), 500
+
 @auth_bp.route('/profile', methods=['GET'])
 @jwt_required()
 def get_profile():
