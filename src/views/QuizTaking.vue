@@ -70,13 +70,13 @@
           
           <div class="options-list">
             <label 
-              v-for="(option, index) in (currentQuestion ? currentQuestion.options : [])" 
-              :key="index"
-              :class="[
-                'option-item', 
-                { 'selected': selectedAnswers[currentQuestion ? currentQuestion.id : 0] === index + 1 },
-                getOptionClass(index)
-              ]"
+            v-for="(option, index) in (currentQuestion && currentQuestion.options ? currentQuestion.options : [])" 
+            :key="index"
+            :class="[
+              'option-item', 
+              { 'selected': currentQuestion && selectedAnswers[currentQuestion.id] === index + 1 },
+              getOptionClass(index)
+            ]"
             >
               <input 
                 type="radio" 
@@ -85,6 +85,7 @@
                 v-model="selectedAnswers[currentQuestion ? currentQuestion.id : 0]"
                 @change="saveAnswer"
                 :disabled="currentQuestionFeedback && timerMode === 'question'"
+                v-if="currentQuestion"
               />
               <span class="option-text">{{ option }}</span>
               <span v-if="getOptionClass(index) === 'option-correct'" class="feedback-icon correct">
@@ -153,15 +154,15 @@
             :class="{
               'answered': selectedAnswers[question.id],
               'current': currentQuestionIndex === index,
-              'correct': questionFeedback[question.id] && questionFeedback[question.id].isCorrect,
-              'incorrect': questionFeedback[question.id] && !questionFeedback[question.id].isCorrect
+              'correct': questionFeedback && questionFeedback[question.id] && questionFeedback[question.id].isCorrect,
+              'incorrect': questionFeedback && questionFeedback[question.id] && !questionFeedback[question.id].isCorrect
             }"
             :disabled="timerMode === 'question' && index !== currentQuestionIndex"
           >
             {{ index + 1 }}
-            <i v-if="questionFeedback[question.id] && questionFeedback[question.id].isCorrect" 
+            <i v-if="questionFeedback && questionFeedback[question.id] && questionFeedback[question.id].isCorrect" 
                class="fas fa-check indicator-icon"></i>
-            <i v-else-if="questionFeedback[question.id] && !questionFeedback[question.id].isCorrect" 
+            <i v-else-if="questionFeedback && questionFeedback[question.id] && !questionFeedback[question.id].isCorrect" 
                class="fas fa-times indicator-icon"></i>
           </button>
         </div>
@@ -260,7 +261,7 @@ export default {
       // Quiz progress and feedback
       showInstantFeedback: false,
       currentQuestionFeedback: null,
-      questionFeedback: null,
+      questionFeedback: {},
       
       // Submission state
       submitting: false,
@@ -348,6 +349,7 @@ export default {
         }
 
         const response = await this.$api.get(`/user/quiz/${this.quizId}/take`)
+        console.log('API Response:', response)
         
         if (response.status === 200) {
           const data = response.data
@@ -369,14 +371,18 @@ export default {
           
           this.questions = data.questions || []
           this.totalQuestions = this.questions.length
+          console.log('Loaded questions:', this.questions)
           
           // Ensure we have at least one question
           if (this.questions.length === 0) {
             throw new Error('No questions available for this quiz')
           }
           
+          // Initialize selectedAnswers object
+          this.selectedAnswers = {}
+          
           // Set up auto-expiry monitoring
-          this.autoExpireEnabled = data.auto_expire_enabled
+          this.autoExpireEnabled = data.auto_expire_enabled || false
           this.timeUntilExpiry = data.time_remaining_until_expiry
           
           if (data.quiz_expires_at) {
@@ -384,7 +390,10 @@ export default {
             this.startExpiryMonitoring()
           }
           
-          this.startQuestionTimer()
+          // Only start question timer if we have questions
+          if (this.questions.length > 0) {
+            this.startQuestionTimer()
+          }
           
         } else {
           this.error = (response.data && response.data.error) ? response.data.error : 'Failed to load quiz'
@@ -628,16 +637,16 @@ export default {
       }
     },
 
-    showConfirmModal() {
-      this.$set(this, 'showConfirmModal', true)
+    openConfirmModal() {
+      this.showConfirmModal = true
     },
 
     closeConfirmModal() {
-      this.$set(this, 'showConfirmModal', false)
+      this.showConfirmModal = false
     },
 
     confirmSubmit() {
-      this.$set(this, 'showConfirmModal', false)
+      this.showConfirmModal = false
       this.submitAnswers()
     },
 
@@ -673,6 +682,12 @@ export default {
 
     goToDashboard() {
       this.$router.push('/dashboard')
+    },
+
+    goToQuestion(index) {
+      if (index >= 0 && index < this.questions.length) {
+        this.currentQuestionIndex = index
+      }
     }
   }
 }
