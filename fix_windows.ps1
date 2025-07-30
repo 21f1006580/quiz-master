@@ -12,11 +12,12 @@ Write-Host "2. Check Python Installation" -ForegroundColor Cyan
 Write-Host "3. Check Node.js Installation" -ForegroundColor Cyan
 Write-Host "4. Check Database Status" -ForegroundColor Cyan
 Write-Host "5. Reset Database" -ForegroundColor Cyan
-Write-Host "6. Test All Components" -ForegroundColor Cyan
-Write-Host "7. Exit" -ForegroundColor Cyan
+Write-Host "6. Install Redis" -ForegroundColor Cyan
+Write-Host "7. Test All Components" -ForegroundColor Cyan
+Write-Host "8. Exit" -ForegroundColor Cyan
 Write-Host ""
 
-$choice = Read-Host "Enter your choice (1-7)"
+$choice = Read-Host "Enter your choice (1-8)"
 
 switch ($choice) {
     "1" {
@@ -99,6 +100,22 @@ switch ($choice) {
     }
     "6" {
         Write-Host ""
+        Write-Host "🔧 Installing Redis..." -ForegroundColor Yellow
+        
+        if (Test-Path "install_redis.py") {
+            try {
+                python install_redis.py
+                Write-Host "✅ Redis installation completed!" -ForegroundColor Green
+            } catch {
+                Write-Host "❌ Failed to install Redis" -ForegroundColor Red
+                Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
+            }
+        } else {
+            Write-Host "❌ install_redis.py not found" -ForegroundColor Red
+        }
+    }
+    "7" {
+        Write-Host ""
         Write-Host "🧪 Testing All Components..." -ForegroundColor Yellow
         
         # Test Python
@@ -150,7 +167,7 @@ switch ($choice) {
             }
         }
     }
-    "7" {
+    "8" {
         Write-Host ""
         Write-Host "Goodbye!" -ForegroundColor Green
         Write-Host ""
@@ -158,7 +175,7 @@ switch ($choice) {
     }
     default {
         Write-Host ""
-        Write-Host "Invalid choice. Please enter 1-7." -ForegroundColor Red
+        Write-Host "Invalid choice. Please enter 1-8." -ForegroundColor Red
         Write-Host ""
     }
 }

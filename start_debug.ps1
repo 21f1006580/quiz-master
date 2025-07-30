@@ -66,6 +66,7 @@ try {
     if (-not $redisExists) {
         Write-Host "⚠️  Redis not found. Background tasks will be disabled." -ForegroundColor Yellow
         Write-Host "To enable background tasks, install Redis from https://redis.io" -ForegroundColor Yellow
+        Write-Host "Or run: python install_redis.py to install automatically" -ForegroundColor Cyan
         $REDIS_AVAILABLE = $false
     } else {
         # Check if Redis server is running
@@ -76,12 +77,14 @@ try {
         } else {
             Write-Host "⚠️  Redis is installed but not running. Background tasks will be disabled." -ForegroundColor Yellow
             Write-Host "To enable background tasks, start Redis server" -ForegroundColor Yellow
+            Write-Host "Or run: python install_redis.py to reinstall" -ForegroundColor Cyan
             $REDIS_AVAILABLE = $false
         }
     }
 } catch {
     Write-Host "⚠️  Redis not found. Background tasks will be disabled." -ForegroundColor Yellow
     Write-Host "To enable background tasks, install Redis from https://redis.io" -ForegroundColor Yellow
+    Write-Host "Or run: python install_redis.py to install automatically" -ForegroundColor Cyan
     $REDIS_AVAILABLE = $false
 }
 

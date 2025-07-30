@@ -33,12 +33,14 @@ where redis-cli >nul 2>&1
 if errorlevel 1 (
     echo ⚠️  Redis not found. Background tasks will be disabled.
     echo To enable background tasks, install Redis from https://redis.io
+    echo Or run: python install_redis.py to install automatically
     set REDIS_AVAILABLE=false
 ) else (
     redis-cli ping >nul 2>&1
     if errorlevel 1 (
         echo ⚠️  Redis is installed but not running. Background tasks will be disabled.
         echo To enable background tasks, start Redis server
+        echo Or run: python install_redis.py to reinstall
         set REDIS_AVAILABLE=false
     ) else (
         echo ✅ Redis is running

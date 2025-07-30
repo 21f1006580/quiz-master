@@ -27,6 +27,7 @@ if ! command -v redis-cli &> /dev/null; then
     echo "⚠️  Redis not found. Please install Redis for background tasks."
     echo "On Mac: brew install redis"
     echo "On Ubuntu: sudo apt-get install redis-server"
+    echo "Or run: python3 install_redis.py to install automatically"
     echo "Starting without background tasks..."
     REDIS_AVAILABLE=false
 else
@@ -36,6 +37,7 @@ else
     else
         echo "⚠️  Redis is installed but not running. Starting without background tasks..."
         echo "To start Redis: brew services start redis (Mac) or sudo systemctl start redis (Ubuntu)"
+        echo "Or run: python3 install_redis.py to reinstall"
         REDIS_AVAILABLE=false
     fi
 fi
