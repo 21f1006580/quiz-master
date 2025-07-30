@@ -54,11 +54,9 @@ pip install -r requirements.txt
 REM Install requests for debugging
 pip install requests
 
-REM Seed database if it doesn't exist
-if not exist "quizmaster.db" (
-    echo 🌱 Seeding database with sample data...
-    python seed_data.py
-)
+REM Initialize database
+echo 🗄️  Initializing database...
+python init_db.py
 
 REM Set environment variables
 set FLASK_APP=app.py

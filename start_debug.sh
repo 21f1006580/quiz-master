@@ -54,11 +54,9 @@ pip install -r requirements.txt
 # Install requests for debugging
 pip install requests
 
-# Seed database if it doesn't exist
-if [ ! -f "quizmaster.db" ]; then
-    echo "🌱 Seeding database with sample data..."
-    python3 seed_data.py
-fi
+# Initialize database
+echo "🗄️  Initializing database..."
+python3 init_db.py
 
 # Set environment variables
 export FLASK_APP=app.py

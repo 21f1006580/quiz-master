@@ -86,8 +86,15 @@ python celery_worker.py
 
 #### Reset Database
 ```bash
+# Complete reset
 python reset_db.py
-python seed_data.py
+python init_db.py
+
+# Or just reinitialize
+python init_db.py
+
+# Check database status
+python check_db.py
 ```
 
 #### Check Database File

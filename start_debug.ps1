@@ -92,11 +92,9 @@ pip install -r requirements.txt
 Write-Host "📦 Installing debugging dependencies..." -ForegroundColor Yellow
 pip install requests
 
-# Seed database if it doesn't exist
-if (-not (Test-Path "quizmaster.db")) {
-    Write-Host "🌱 Seeding database with sample data..." -ForegroundColor Yellow
-    python seed_data.py
-}
+# Initialize database
+Write-Host "🗄️  Initializing database..." -ForegroundColor Yellow
+python init_db.py
 
 # Set environment variables
 $env:FLASK_APP = "app.py"

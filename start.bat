@@ -51,11 +51,9 @@ call venv\Scripts\activate.bat
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 
-REM Seed database if it doesn't exist
-if not exist "quizmaster.db" (
-    echo 🌱 Seeding database with sample data...
-    python seed_data.py
-)
+REM Initialize database
+echo 🗄️  Initializing database...
+python init_db.py
 
 REM Set environment variables
 set FLASK_APP=app.py

@@ -100,10 +100,15 @@ https://nodejs.org/
 
 ### **For Troubleshooting 422 Errors:**
 
-1. **Reset Database:**
+1. **Check Database Status:**
+   ```powershell
+   python check_db.py
+   ```
+
+2. **Reset Database:**
    ```powershell
    python reset_db.py
-   python seed_data.py
+   python init_db.py
    ```
 
 2. **Use Debug Mode:**
