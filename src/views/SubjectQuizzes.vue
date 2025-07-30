@@ -333,7 +333,7 @@ export default {
           this.subject = data.subject
           this.quizzes = data.quizzes || []
         } else {
-          this.error = response.data?.error || 'Failed to load quizzes'
+          this.error = (response.data && response.data.error) ? response.data.error : 'Failed to load quizzes'
         }
 
       } catch (error) {

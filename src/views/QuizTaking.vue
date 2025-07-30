@@ -304,11 +304,11 @@ export default {
           this.startQuestionTimer()
           
         } else {
-          this.error = response.data?.error || 'Failed to load quiz'
+          this.error = (response.data && response.data.error) ? response.data.error : 'Failed to load quiz'
           console.error("Quiz loading error:", this.error)
           
           // Show specific error for expired quiz
-          if (response.data?.quiz_status === 'expired') {
+          if (response.data && response.data.quiz_status === 'expired') {
             alert('This quiz has expired and is no longer available.')
           } else {
             alert(this.error)
@@ -508,11 +508,11 @@ export default {
         } else {
           console.error("Submit error:", response.data)
           
-          if (response.data?.error?.includes('expired')) {
+          if (response.data && response.data.error && response.data.error.includes('expired')) {
             alert('Quiz expired before submission could be completed.')
             this.$router.push('/dashboard')
           } else {
-            alert('Error submitting quiz: ' + (response.data?.error || 'Unknown error'))
+            alert('Error submitting quiz: ' + ((response.data && response.data.error) ? response.data.error : 'Unknown error'))
           }
         }
       } catch (error) {
