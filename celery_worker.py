@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from app import create_app
 from backend.api.quiz_tasks import check_and_expire_quizzes, send_expiry_warnings, daily_cleanup, expire_single_quiz
+from backend.api.notification_tasks import send_daily_reminders, generate_monthly_report, export_user_quiz_csv, export_admin_user_csv
 
 def create_celery_worker():
     """Create and configure Celery worker"""
@@ -24,7 +25,7 @@ def create_celery_worker():
         'quiz_master',
         broker=app.config.get('CELERY_BROKER_URL', 'redis://localhost:6379/0'),
         backend=app.config.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0'),
-        include=['backend.api.quiz_tasks']
+        include=['backend.api.quiz_tasks', 'backend.api.notification_tasks']
     )
     
     # Update configuration from Flask app
@@ -43,6 +44,14 @@ def create_celery_worker():
         'daily-quiz-cleanup': {
             'task': 'backend.api.quiz_tasks.daily_cleanup',
             'schedule': crontab(hour=2, minute=0),
+        },
+        'daily-reminders': {
+            'task': 'backend.api.notification_tasks.send_daily_reminders',
+            'schedule': crontab(hour=18, minute=0),  # 6 PM
+        },
+        'monthly-reports': {
+            'task': 'backend.api.notification_tasks.generate_monthly_report',
+            'schedule': crontab(day_of_month=1, hour=9, minute=0),
         }
     }
     
@@ -64,11 +73,17 @@ if __name__ == '__main__':
     print("   - send_expiry_warnings") 
     print("   - daily_cleanup")
     print("   - expire_single_quiz")
+    print("   - send_daily_reminders")
+    print("   - generate_monthly_report")
+    print("   - export_user_quiz_csv")
+    print("   - export_admin_user_csv")
     print("")
     print("⏰ Scheduled tasks:")
     print("   - Quiz expiry check: Every 2 minutes")
     print("   - Expiry warnings: Every 5 minutes")
     print("   - Daily cleanup: 2:00 AM UTC")
+    print("   - Daily reminders: 6:00 PM UTC")
+    print("   - Monthly reports: 1st of month, 9:00 AM UTC")
     print("")
     
     celery = create_celery_worker()

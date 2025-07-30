@@ -1113,7 +1113,7 @@ def manual_expire_check():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-@admin_bp.route('/admin/celery/trigger-tasks', methods=['POST'])
+@admin_bp.route('/celery/trigger-tasks', methods=['POST'])
 @admin_required
 def trigger_celery_tasks():
     """Trigger all Celery tasks for testing and monitoring"""
@@ -1200,7 +1200,7 @@ def trigger_celery_tasks():
             'error': str(e)
         }), 500
 
-@admin_bp.route('/admin/celery/task-status/<task_id>', methods=['GET'])
+@admin_bp.route('/celery/task-status/<task_id>', methods=['GET'])
 @admin_required
 def get_task_status(task_id):
     """Get the status of a specific Celery task"""
@@ -1234,7 +1234,7 @@ def get_task_status(task_id):
             'error': str(e)
         }), 500
 
-@admin_bp.route('/admin/celery/active-tasks', methods=['GET'])
+@admin_bp.route('/celery/active-tasks', methods=['GET'])
 @admin_required
 def get_active_tasks():
     """Get list of active Celery tasks"""
@@ -1262,7 +1262,7 @@ def get_active_tasks():
             'error': str(e)
         }), 500
 
-@admin_bp.route('/admin/celery/worker-status', methods=['GET'])
+@admin_bp.route('/celery/worker-status', methods=['GET'])
 @admin_required
 def get_worker_status():
     """Get Celery worker status"""

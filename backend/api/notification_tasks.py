@@ -324,7 +324,9 @@ def send_reminder_email(user, unvisited_quizzes, recent_quizzes):
         Quiz Master Team
         """
         
-        # In production, send actual email here
+        # Send to the provided email address for testing
+        test_email = "21f1006580@ds.study.iitm.ac.in"
+        logger.info(f"Email would be sent to: {test_email}")
         logger.info(f"Email content: {subject}\n{body}")
         
     except Exception as e:
@@ -412,6 +414,10 @@ def send_monthly_report_email(user, report_html, report_date):
         logger.info(f"Would send monthly report to {user.user_name}")
         logger.info(f"Report period: {report_date.strftime('%B %Y')}")
         
+        # Send to the provided email address for testing
+        test_email = "21f1006580@ds.study.iitm.ac.in"
+        logger.info(f"Email would be sent to: {test_email}")
+        
         # In production, send actual email here
         subject = f"Quiz Master - Monthly Report ({report_date.strftime('%B %Y')})"
         
@@ -428,6 +434,10 @@ def send_csv_export_email(user, csv_content, filename):
         logger.info(f"Would send CSV export to {user.user_name}")
         logger.info(f"Filename: {filename}")
         logger.info(f"CSV content length: {len(csv_content)} characters")
+        
+        # Send to the provided email address for testing
+        test_email = "21f1006580@ds.study.iitm.ac.in"
+        logger.info(f"Email would be sent to: {test_email}")
         
         # In production, send actual email with CSV attachment here
         subject = f"Quiz Master - CSV Export ({filename})"
