@@ -27,13 +27,33 @@ goto invalid
 echo.
 echo Starting with PowerShell...
 echo.
-powershell -ExecutionPolicy Bypass -File "start.ps1"
+REM Check if PowerShell script exists
+if not exist "start.ps1" (
+    echo ❌ Error: start.ps1 not found in current directory
+    echo Please make sure you're running this from the quiz-master folder
+    pause
+    goto end
+)
+REM Run PowerShell with proper error handling
+powershell -ExecutionPolicy Bypass -NoProfile -File "start.ps1"
+if errorlevel 1 (
+    echo ❌ PowerShell script failed to run
+    echo Try running: Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+    pause
+)
 goto end
 
 :batch
 echo.
 echo Starting with Command Prompt...
 echo.
+REM Check if batch script exists
+if not exist "start.bat" (
+    echo ❌ Error: start.bat not found in current directory
+    echo Please make sure you're running this from the quiz-master folder
+    pause
+    goto end
+)
 call start.bat
 goto end
 
@@ -41,13 +61,33 @@ goto end
 echo.
 echo Starting Debug Mode with PowerShell...
 echo.
-powershell -ExecutionPolicy Bypass -File "start_debug.ps1"
+REM Check if PowerShell debug script exists
+if not exist "start_debug.ps1" (
+    echo ❌ Error: start_debug.ps1 not found in current directory
+    echo Please make sure you're running this from the quiz-master folder
+    pause
+    goto end
+)
+REM Run PowerShell debug script with proper error handling
+powershell -ExecutionPolicy Bypass -NoProfile -File "start_debug.ps1"
+if errorlevel 1 (
+    echo ❌ PowerShell debug script failed to run
+    echo Try running: Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+    pause
+)
 goto end
 
 :debug_batch
 echo.
 echo Starting Debug Mode with Command Prompt...
 echo.
+REM Check if batch debug script exists
+if not exist "start_debug.bat" (
+    echo ❌ Error: start_debug.bat not found in current directory
+    echo Please make sure you're running this from the quiz-master folder
+    pause
+    goto end
+)
 call start_debug.bat
 goto end
 

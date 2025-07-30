@@ -3,9 +3,10 @@
 ## 🚀 Quick Start
 
 ### **Easiest Method: Use the Launcher**
-1. Double-click `run.bat`
-2. Choose your preferred startup method
-3. Follow the prompts
+1. **Double-click `run.bat`** (Command Prompt launcher)
+2. **OR right-click `run.ps1` → "Run with PowerShell"** (PowerShell launcher)
+3. Choose your preferred startup method
+4. Follow the prompts
 
 ### **Manual Method**
 
@@ -143,11 +144,14 @@ https://nodejs.org/
 ```
 quiz-master/
 ├── run.bat              # Main launcher (double-click this!)
+├── run.ps1              # PowerShell launcher (right-click → Run with PowerShell)
 ├── start.ps1            # PowerShell startup
 ├── start_debug.ps1      # PowerShell debug startup
 ├── start.bat            # Command Prompt startup
 ├── start_debug.bat      # Command Prompt debug startup
 ├── debug_jwt.py         # JWT debugging tool
+├── init_db.py           # Database initialization tool
+├── check_db.py          # Database status checker
 ├── reset_db.py          # Database reset tool
 └── TROUBLESHOOTING.md   # Troubleshooting guide
 ```
