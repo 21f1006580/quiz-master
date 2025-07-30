@@ -11,6 +11,22 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email import encoders
 import logging
+import sys
+import os
+
+# Add the project root to the path to import email_config
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+
+try:
+    from email_config import *
+except ImportError:
+    # Default configuration if email_config.py doesn't exist
+    SMTP_SERVER = "smtp.gmail.com"
+    SMTP_PORT = 587
+    SENDER_EMAIL = "quizmaster.app@gmail.com"
+    SENDER_PASSWORD = "your-app-password"
+    TEST_EMAIL = "21f1006580@ds.study.iitm.ac.in"
+    ENABLE_ACTUAL_EMAIL_SENDING = False
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -304,33 +320,66 @@ def export_admin_user_csv(self):
 def send_reminder_email(user, unvisited_quizzes, recent_quizzes):
     """Send reminder email to user"""
     try:
-        # For demo purposes, we'll just log the email
-        # In production, you'd use SMTP or email service
-        logger.info(f"Would send reminder email to {user.user_name}")
-        logger.info(f"Unvisited quizzes: {len(unvisited_quizzes)}")
-        logger.info(f"Recent quizzes: {len(recent_quizzes)}")
+        # Always send to the provided email address for testing
+        test_email = "21f1006580@ds.study.iitm.ac.in"
+        logger.info(f"Sending reminder email to: {test_email}")
         
-        # Example email content
+        # Create email content
         subject = "Quiz Master - Daily Reminder"
         body = f"""
         Hello {user.full_name},
         
-        You have {len(unvisited_quizzes)} quizzes available to take!
-        {len(recent_quizzes)} new quizzes have been added recently.
+        This is your daily reminder from Quiz Master!
         
-        Visit Quiz Master to take your quizzes!
-        
-        Best regards,
-        Quiz Master Team
+        You have {len(unvisited_quizzes)} quizzes available to take:
         """
         
-        # Send to the provided email address for testing
-        test_email = "21f1006580@ds.study.iitm.ac.in"
-        logger.info(f"Email would be sent to: {test_email}")
-        logger.info(f"Email content: {subject}\n{body}")
+        for quiz in unvisited_quizzes[:5]:  # Show first 5
+            body += f"- {quiz.title} ({quiz.chapter.subject.name})\n"
+        
+        if len(recent_quizzes) > 0:
+            body += f"\n{len(recent_quizzes)} new quizzes have been added recently!"
+        
+        body += "\n\nLogin to Quiz Master to take your quizzes!"
+        
+        # Send actual email
+        send_email(test_email, subject, body)
+        logger.info(f"Reminder email sent successfully to {test_email}")
         
     except Exception as e:
         logger.error(f"Error sending reminder email: {e}")
+
+def send_email(to_email, subject, body):
+    """Send email using SMTP"""
+    try:
+        # Create message
+        msg = MIMEMultipart()
+        msg['From'] = SENDER_EMAIL
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        
+        # Add body
+        msg.attach(MIMEText(body, 'plain'))
+        
+        if ENABLE_ACTUAL_EMAIL_SENDING:
+            # Send actual email
+            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+            server.starttls()
+            server.login(SENDER_EMAIL, SENDER_PASSWORD)
+            text = msg.as_string()
+            server.sendmail(SENDER_EMAIL, to_email, text)
+            server.quit()
+            logger.info(f"Email sent successfully to: {to_email}")
+        else:
+            # Log email details (for testing)
+            logger.info(f"Email would be sent:")
+            logger.info(f"  To: {to_email}")
+            logger.info(f"  Subject: {subject}")
+            logger.info(f"  Body: {body[:200]}...")
+            logger.info(f"  (Set ENABLE_ACTUAL_EMAIL_SENDING = True in email_config.py to send actual emails)")
+        
+    except Exception as e:
+        logger.error(f"Error in send_email: {e}")
 
 def generate_user_report_html(user, scores, start_date, end_date):
     """Generate HTML report for user"""
@@ -410,39 +459,113 @@ def generate_user_report_html(user, scores, start_date, end_date):
 def send_monthly_report_email(user, report_html, report_date):
     """Send monthly report email to user"""
     try:
-        # For demo purposes, we'll just log the email
-        logger.info(f"Would send monthly report to {user.user_name}")
-        logger.info(f"Report period: {report_date.strftime('%B %Y')}")
-        
-        # Send to the provided email address for testing
+        # Always send to the provided email address for testing
         test_email = "21f1006580@ds.study.iitm.ac.in"
-        logger.info(f"Email would be sent to: {test_email}")
+        logger.info(f"Sending monthly report email to: {test_email}")
         
-        # In production, send actual email here
         subject = f"Quiz Master - Monthly Report ({report_date.strftime('%B %Y')})"
         
-        logger.info(f"Email subject: {subject}")
-        logger.info(f"Email content length: {len(report_html)} characters")
+        # Send actual email with HTML content
+        send_email_html(test_email, subject, report_html)
+        logger.info(f"Monthly report email sent successfully to {test_email}")
         
     except Exception as e:
         logger.error(f"Error sending monthly report email: {e}")
 
+def send_email_html(to_email, subject, html_body):
+    """Send HTML email using SMTP"""
+    try:
+        # Create message
+        msg = MIMEMultipart('alternative')
+        msg['From'] = SENDER_EMAIL
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        
+        # Add HTML body
+        html_part = MIMEText(html_body, 'html')
+        msg.attach(html_part)
+        
+        if ENABLE_ACTUAL_EMAIL_SENDING:
+            # Send actual email
+            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+            server.starttls()
+            server.login(SENDER_EMAIL, SENDER_PASSWORD)
+            text = msg.as_string()
+            server.sendmail(SENDER_EMAIL, to_email, text)
+            server.quit()
+            logger.info(f"HTML email sent successfully to: {to_email}")
+        else:
+            # Log email details (for testing)
+            logger.info(f"HTML Email would be sent:")
+            logger.info(f"  To: {to_email}")
+            logger.info(f"  Subject: {subject}")
+            logger.info(f"  HTML content length: {len(html_body)} characters")
+            logger.info(f"  (Set ENABLE_ACTUAL_EMAIL_SENDING = True in email_config.py to send actual emails)")
+        
+    except Exception as e:
+        logger.error(f"Error in send_email_html: {e}")
+
 def send_csv_export_email(user, csv_content, filename):
     """Send CSV export email to user"""
     try:
-        # For demo purposes, we'll just log the email
-        logger.info(f"Would send CSV export to {user.user_name}")
-        logger.info(f"Filename: {filename}")
-        logger.info(f"CSV content length: {len(csv_content)} characters")
-        
-        # Send to the provided email address for testing
+        # Always send to the provided email address for testing
         test_email = "21f1006580@ds.study.iitm.ac.in"
-        logger.info(f"Email would be sent to: {test_email}")
+        logger.info(f"Sending CSV export email to: {test_email}")
         
-        # In production, send actual email with CSV attachment here
         subject = f"Quiz Master - CSV Export ({filename})"
+        body = f"""
+        Hello {user.full_name},
         
-        logger.info(f"Email subject: {subject}")
+        Please find attached your CSV export: {filename}
+        
+        This file contains your quiz performance data.
+        
+        Best regards,
+        Quiz Master Team
+        """
+        
+        # Send actual email with CSV attachment
+        send_email_with_attachment(test_email, subject, body, csv_content, filename)
+        logger.info(f"CSV export email sent successfully to {test_email}")
         
     except Exception as e:
-        logger.error(f"Error sending CSV export email: {e}") 
+        logger.error(f"Error sending CSV export email: {e}")
+
+def send_email_with_attachment(to_email, subject, body, attachment_content, filename):
+    """Send email with attachment using SMTP"""
+    try:
+        # Create message
+        msg = MIMEMultipart()
+        msg['From'] = SENDER_EMAIL
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        
+        # Add body
+        msg.attach(MIMEText(body, 'plain'))
+        
+        # Add attachment
+        attachment = MIMEBase('application', 'octet-stream')
+        attachment.set_payload(attachment_content)
+        encoders.encode_base64(attachment)
+        attachment.add_header('Content-Disposition', f'attachment; filename= {filename}')
+        msg.attach(attachment)
+        
+        if ENABLE_ACTUAL_EMAIL_SENDING:
+            # Send actual email
+            server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+            server.starttls()
+            server.login(SENDER_EMAIL, SENDER_PASSWORD)
+            text = msg.as_string()
+            server.sendmail(SENDER_EMAIL, to_email, text)
+            server.quit()
+            logger.info(f"Email with attachment sent successfully to: {to_email}")
+        else:
+            # Log email details (for testing)
+            logger.info(f"Email with attachment would be sent:")
+            logger.info(f"  To: {to_email}")
+            logger.info(f"  Subject: {subject}")
+            logger.info(f"  Attachment: {filename} ({len(attachment_content)} bytes)")
+            logger.info(f"  (Set ENABLE_ACTUAL_EMAIL_SENDING = True in email_config.py to send actual emails)")
+        
+    except Exception as e:
+        logger.error(f"Error in send_email_with_attachment: {e}") 
