@@ -322,7 +322,7 @@ export default {
 
         console.log('Loading quizzes for subject:', this.subjectId)
 
-        const response = await fetch(`http://localhost:5000/api/user/subjects/${this.subjectId}/quizzes`, {
+        const response = await this.$api.get(`/user/subjects/${this.subjectId}/quizzes`, {
           headers
         })
 

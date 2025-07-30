@@ -274,13 +274,7 @@ export default {
           return
         }
 
-        const response = await fetch(`http://localhost:5000/api/user/quiz/${this.quizId}/take`, {
-          method: 'GET',
-          headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        })
+        const response = await this.$api.get(`/user/quiz/${this.quizId}/take`)
         
         if (response.ok) {
           const data = await response.json()
@@ -389,9 +383,7 @@ export default {
     async checkQuizStatusWithServer() {
       try {
         const token = localStorage.getItem('access_token')
-        const response = await fetch(`http://localhost:5000/api/user/quiz/${this.quizId}/status`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
+        const response = await this.$api.get(`/user/quiz/${this.quizId}/status`)
         
         if (response.ok) {
           const data = await response.json()
@@ -495,16 +487,9 @@ export default {
           formattedAnswers[questionId] = this.selectedAnswers[questionId] - 1
         })
         
-        const response = await fetch(`http://localhost:5000/api/user/quiz/${this.quizId}/submit`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            answers: formattedAnswers,
-            time_taken: totalTimeSpent
-          })
+        const response = await this.$api.post(`/user/quiz/${this.quizId}/submit`, {
+          answers: formattedAnswers,
+          time_taken: totalTimeSpent
         })
         
         if (response.ok) {
