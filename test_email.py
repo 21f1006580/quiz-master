@@ -31,7 +31,7 @@ def test_email():
             return
         
         if SENDER_EMAIL == "quizmaster.app@gmail.com":
-            print("\n⚠️  Please update SENDER_EMAIL in email_config.py")
+            print("\n⚠️  SENDER_EMAIL is already set to your IITM address")
             return
             
         if SENDER_PASSWORD == "your-app-password":

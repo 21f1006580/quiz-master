@@ -47,8 +47,8 @@ def setup_email_config():
     print("\n🎯 All emails will be sent to: 21f1006580@ds.study.iitm.ac.in")
     
     # Check if config is ready
-    if 'SENDER_EMAIL = "quizmaster.app@gmail.com"' in config_content:
-        print("\n⚠️  You still need to update SENDER_EMAIL in email_config.py")
+    if 'SENDER_EMAIL = "21f1006580@ds.study.iitm.ac.in"' in config_content:
+        print("\n✅ SENDER_EMAIL is set to your IITM address")
     if 'SENDER_PASSWORD = "your-app-password"' in config_content:
         print("⚠️  You still need to update SENDER_PASSWORD in email_config.py")
     

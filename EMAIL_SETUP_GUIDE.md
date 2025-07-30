@@ -5,29 +5,29 @@ Send actual emails to `21f1006580@ds.study.iitm.ac.in` through Celery tasks.
 
 ## ✅ Current Status
 - ✅ Email sending is **ENABLED**
+- ✅ Sender email set to your IITM address: `21f1006580@ds.study.iitm.ac.in`
 - ✅ All emails configured for your IITM address
 - ✅ Celery tasks are working
-- ⚠️ Need to configure Gmail credentials
+- ⚠️ Need to configure Google app password
 
 ## 🔧 Setup Steps
 
-### 1. Gmail App Password Setup
-1. Go to [Google Account Security](https://myaccount.google.com/security)
+### 1. Google App Password Setup for IITM Email
+1. Go to [Google Account Security](https://myaccount.google.com/security) for `21f1006580@ds.study.iitm.ac.in`
 2. Enable **2-factor authentication** if not already enabled
 3. Go to **"App passwords"** (under 2-Step Verification)
 4. Select **"Mail"** and generate a password
 5. Copy the **16-character password**
 
 ### 2. Update Email Configuration
-Edit `email_config.py` and update these lines:
+Edit `email_config.py` and update this line:
 
 ```python
-# Update with your Gmail address
-SENDER_EMAIL = "your-email@gmail.com"
-
 # Update with your 16-character app password
 SENDER_PASSWORD = "your-16-char-app-password"
 ```
+
+**Note**: SENDER_EMAIL is already set to `21f1006580@ds.study.iitm.ac.in`
 
 ### 3. Test Email Sending
 ```bash
