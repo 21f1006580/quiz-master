@@ -192,7 +192,7 @@ export default {
         alert(`Successfully triggered ${taskType} tasks!`)
       } catch (error) {
         console.error('Error triggering tasks:', error)
-        alert('Error triggering tasks: ' + (error.response?.data?.error || error.message))
+        alert('Error triggering tasks: ' + (error.response && error.response.data && error.response.data.error ? error.response.data.error : error.message))
       } finally {
         this.triggering = false
       }
@@ -222,7 +222,7 @@ export default {
         this.workerStatus = response.data.worker_status
       } catch (error) {
         console.error('Error checking worker status:', error)
-        alert('Error checking worker status: ' + (error.response?.data?.error || error.message))
+        alert('Error checking worker status: ' + (error.response && error.response.data && error.response.data.error ? error.response.data.error : error.message))
       } finally {
         this.checking = false
       }
@@ -236,7 +236,7 @@ export default {
         this.activeTasks = response.data.active_tasks
       } catch (error) {
         console.error('Error checking active tasks:', error)
-        alert('Error checking active tasks: ' + (error.response?.data?.error || error.message))
+        alert('Error checking active tasks: ' + (error.response && error.response.data && error.response.data.error ? error.response.data.error : error.message))
       } finally {
         this.checking = false
       }
@@ -264,7 +264,7 @@ export default {
         alert(message)
       } catch (error) {
         console.error('Error checking task status:', error)
-        alert('Error checking task status: ' + (error.response?.data?.error || error.message))
+        alert('Error checking task status: ' + (error.response && error.response.data && error.response.data.error ? error.response.data.error : error.message))
       }
     }
   }
