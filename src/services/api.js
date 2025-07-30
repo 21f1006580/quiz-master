@@ -114,6 +114,12 @@ export const adminAPI = {
     triggerExpireCheck: () => api.post('/admin/quiz/expire-check'),
     triggerExpireQuiz: (quizId) => api.post(`/admin/quiz/expire/${quizId}`),
     getTaskStatus: (taskId) => api.get(`/admin/task/${taskId}/status`),
+    
+    // Celery Task Management
+    triggerCeleryTasks: (taskType) => api.post('/admin/celery/trigger-tasks', { task_type: taskType }),
+    getTaskStatusById: (taskId) => api.get(`/admin/celery/task-status/${taskId}`),
+    getActiveTasks: () => api.get('/admin/celery/active-tasks'),
+    getWorkerStatus: () => api.get('/admin/celery/worker-status'),
 };
 
 // Helper functions

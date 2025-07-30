@@ -156,6 +156,8 @@
 </template>
 
 <script>
+import { adminAPI } from '@/services/api'
+
 export default {
   name: 'AdminDashboard',
   data() {
@@ -174,14 +176,8 @@ export default {
   methods: {
     async loadStats() {
       try {
-        const token = localStorage.getItem('access_token')
-        const response = await fetch('/api/admin/dashboard/stats', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-        
-        if (response.ok) {
-          this.stats = await response.json()
-        }
+        const response = await adminAPI.getDashboardStats()
+        this.stats = response.data
       } catch (error) {
         console.error('Error loading stats:', error)
       }
@@ -190,28 +186,13 @@ export default {
     async triggerTasks(taskType) {
       try {
         this.triggering = true
-        const token = localStorage.getItem('access_token')
         
-        const response = await fetch('/api/admin/celery/trigger-tasks', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ task_type: taskType })
-        })
-        
-        if (response.ok) {
-          const data = await response.json()
-          this.taskResults = data.results
-          alert(`Successfully triggered ${taskType} tasks!`)
-        } else {
-          const error = await response.json()
-          alert(`Error triggering tasks: ${error.error}`)
-        }
+        const response = await adminAPI.triggerCeleryTasks(taskType)
+        this.taskResults = response.data.results
+        alert(`Successfully triggered ${taskType} tasks!`)
       } catch (error) {
         console.error('Error triggering tasks:', error)
-        alert('Error triggering tasks: ' + error.message)
+        alert('Error triggering tasks: ' + (error.response?.data?.error || error.message))
       } finally {
         this.triggering = false
       }
@@ -236,22 +217,12 @@ export default {
     async checkWorkerStatus() {
       try {
         this.checking = true
-        const token = localStorage.getItem('access_token')
         
-        const response = await fetch('/api/admin/celery/worker-status', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-        
-        if (response.ok) {
-          const data = await response.json()
-          this.workerStatus = data.worker_status
-        } else {
-          const error = await response.json()
-          alert(`Error checking worker status: ${error.error}`)
-        }
+        const response = await adminAPI.getWorkerStatus()
+        this.workerStatus = response.data.worker_status
       } catch (error) {
         console.error('Error checking worker status:', error)
-        alert('Error checking worker status: ' + error.message)
+        alert('Error checking worker status: ' + (error.response?.data?.error || error.message))
       } finally {
         this.checking = false
       }
@@ -260,22 +231,12 @@ export default {
     async checkActiveTasks() {
       try {
         this.checking = true
-        const token = localStorage.getItem('access_token')
         
-        const response = await fetch('/api/admin/celery/active-tasks', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-        
-        if (response.ok) {
-          const data = await response.json()
-          this.activeTasks = data.active_tasks
-        } else {
-          const error = await response.json()
-          alert(`Error checking active tasks: ${error.error}`)
-        }
+        const response = await adminAPI.getActiveTasks()
+        this.activeTasks = response.data.active_tasks
       } catch (error) {
         console.error('Error checking active tasks:', error)
-        alert('Error checking active tasks: ' + error.message)
+        alert('Error checking active tasks: ' + (error.response?.data?.error || error.message))
       } finally {
         this.checking = false
       }
@@ -283,38 +244,27 @@ export default {
 
     async checkTaskStatus(taskId) {
       try {
-        const token = localStorage.getItem('access_token')
+        const response = await adminAPI.getTaskStatusById(taskId)
+        const status = response.data.task_status
         
-        const response = await fetch(`/api/admin/celery/task-status/${taskId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
+        let message = `Task ${taskId}:\n`
+        message += `Status: ${status.status}\n`
+        message += `Ready: ${status.ready}\n`
+        message += `Successful: ${status.successful}\n`
+        message += `Failed: ${status.failed}`
         
-        if (response.ok) {
-          const data = await response.json()
-          const status = data.task_status
-          
-          let message = `Task ${taskId}:\n`
-          message += `Status: ${status.status}\n`
-          message += `Ready: ${status.ready}\n`
-          message += `Successful: ${status.successful}\n`
-          message += `Failed: ${status.failed}`
-          
-          if (status.result) {
-            message += `\n\nResult: ${JSON.stringify(status.result, null, 2)}`
-          }
-          
-          if (status.error) {
-            message += `\n\nError: ${status.error}`
-          }
-          
-          alert(message)
-        } else {
-          const error = await response.json()
-          alert(`Error checking task status: ${error.error}`)
+        if (status.result) {
+          message += `\n\nResult: ${JSON.stringify(status.result, null, 2)}`
         }
+        
+        if (status.error) {
+          message += `\n\nError: ${status.error}`
+        }
+        
+        alert(message)
       } catch (error) {
         console.error('Error checking task status:', error)
-        alert('Error checking task status: ' + error.message)
+        alert('Error checking task status: ' + (error.response?.data?.error || error.message))
       }
     }
   }
