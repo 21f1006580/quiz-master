@@ -171,14 +171,21 @@ class Quiz(db.Model):
 
     def get_status(self):
         """Get current quiz status with auto-expiry logic"""
-        now = datetime.utcnow()
+        from datetime import timezone
+        
+        now = datetime.now(timezone.utc)  # Use timezone-aware datetime
         
         # Check if manually deactivated
         if not self.is_active:
             return 'inactive'
         
+        # Convert quiz start time to UTC if naive
+        quiz_start = self.date_of_quiz
+        if quiz_start.tzinfo is None:
+            quiz_start = quiz_start.replace(tzinfo=timezone.utc)
+        
         # Check if quiz hasn't started yet
-        if now < self.date_of_quiz:
+        if now < quiz_start:
             return 'upcoming'
         
         # Check if quiz has expired
@@ -188,6 +195,8 @@ class Quiz(db.Model):
         # Check if quiz is ending soon (within 30 minutes)
         effective_end = self.get_effective_end_time()
         if effective_end:
+            if effective_end.tzinfo is None:
+                effective_end = effective_end.replace(tzinfo=timezone.utc)
             time_to_end = (effective_end - now).total_seconds() / 60
             if 0 < time_to_end <= 30:
                 return 'ending_soon'
@@ -204,6 +213,8 @@ class Quiz(db.Model):
 
     def is_available_for_attempt(self, user_id=None):
         """Check if quiz is available for attempts (with auto-expiry check)"""
+        from datetime import timezone
+        
         # Auto-lock if expired
         was_locked = self.auto_lock_if_expired()
         if was_locked:
@@ -213,11 +224,23 @@ class Quiz(db.Model):
         if not self.is_active:
             return False, "Quiz is not active"
         
-        now = datetime.utcnow()
+        # Use timezone-aware datetime comparison
+        now = datetime.now(timezone.utc)  # UTC timezone-aware datetime
+        
+        # Convert quiz start time to UTC if it's naive
+        quiz_start = self.date_of_quiz
+        if quiz_start.tzinfo is None:
+            # Assume the quiz start time is in UTC if no timezone info
+            quiz_start = quiz_start.replace(tzinfo=timezone.utc)
+        
+        print(f"🕐 Time comparison:")
+        print(f"   Current time (UTC): {now}")
+        print(f"   Quiz start time: {quiz_start}")
+        print(f"   Difference: {(quiz_start - now).total_seconds()} seconds")
         
         # Check if quiz has started
-        if now < self.date_of_quiz:
-            return False, "Quiz has not started yet"
+        if now < quiz_start:
+            return False, f"Quiz has not started yet. Starts at {quiz_start.strftime('%Y-%m-%d %H:%M:%S UTC')}"
         
         # Check if quiz has expired
         if self.is_expired():

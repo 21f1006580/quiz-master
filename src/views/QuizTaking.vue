@@ -1,38 +1,31 @@
 <template>
   <div class="quiz-taking">
-    <div class="quiz-header">
-      <div class="quiz-info">
-        <h1>{{ quizDetails ? quizDetails.title : `Quiz #${quizId}` }}</h1>
-        <p v-if="quizDetails">
-          {{ quizDetails.subjectName }} - {{ quizDetails.chapterName }}
-        </p>
-        <p v-if="quizDetails && timerMode === 'quiz'">
-          Duration: {{ quizDetails.duration }} minutes
-        </p>
-      </div>
-      
-      <div class="timer-section">
-        <!-- Quiz Timer -->
-        <div v-if="timerMode === 'quiz'" class="timer" :class="{ 'timer-warning': timeLeft < 300 }">
-          <span class="timer-label">Quiz Time Remaining:</span>
-          <span class="timer-value">{{ formatTime(timeLeft) }}</span>
-        </div>
-        
-        <!-- Question Timer -->
-        <div v-else-if="timerMode === 'question'" class="timer" :class="{ 'timer-warning': questionTimeLeft < 10 }">
-          <span class="timer-label">Question Time:</span>
-          <span class="timer-value">{{ formatTime(questionTimeLeft) }}</span>
-        </div>
-      </div>
-    </div>
-
-    <div v-if="loading" class="loading">
+    <!-- Loading State -->
+    <div v-if="loading" class="loading-container">
       <div class="spinner"></div>
       <p>Loading quiz...</p>
+      <div class="debug-info" v-if="showDebug">
+        <p>Quiz ID: {{ quizId }}</p>
+        <p>API Response: {{ debugInfo.responseReceived ? 'Yes' : 'No' }}</p>
+        <p>Questions Count: {{ questions.length }}</p>
+        <p>Error: {{ error || 'None' }}</p>
+      </div>
     </div>
 
+    <!-- Error State -->
+    <div v-else-if="error" class="error-container">
+      <div class="error-card">
+        <i class="fas fa-exclamation-triangle"></i>
+        <h2>Unable to Load Quiz</h2>
+        <p>{{ error }}</p>
+        <button @click="goToDashboard" class="btn-primary">Back to Dashboard</button>
+      </div>
+    </div>
+
+    <!-- Quiz Completed State -->
     <div v-else-if="quizCompleted" class="quiz-completed">
       <div class="completion-card">
+        <i class="fas fa-check-circle completion-icon"></i>
         <h2>Quiz Completed!</h2>
         <div class="score-display">
           <h3>Your Score: {{ finalScore }}%</h3>
@@ -45,24 +38,44 @@
       </div>
     </div>
 
+    <!-- Main Quiz Interface -->
     <div v-else class="quiz-content">
+      <!-- Header -->
+      <div class="quiz-header">
+        <div class="quiz-info">
+          <h1>{{ quizDetails.title }}</h1>
+          <p v-if="quizDetails.chapterName">
+            {{ quizDetails.subjectName }} - {{ quizDetails.chapterName }}
+          </p>
+          <p>Duration: {{ quizDetails.duration }} minutes</p>
+        </div>
+        
+        <div class="timer-section">
+          <div v-if="showExpiryWarning" class="expiry-warning">
+            <i class="fas fa-exclamation-triangle"></i>
+            <span>Quiz expires in {{ timeUntilExpiryFormatted }}!</span>
+          </div>
+          
+          <div class="timer" :class="{ 'timer-warning': questionTimeLeft <= 10 }">
+            <span class="timer-label">Question Time:</span>
+            <span class="timer-value">{{ questionTimeLeft }}s</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Progress Bar -->
       <div class="progress-bar">
         <div class="progress-fill" :style="{ width: progressPercentage + '%' }"></div>
         <span class="progress-text">
           Question {{ currentQuestionIndex + 1 }} of {{ questions.length }}
-          <span v-if="showInstantFeedback" class="score-preview">
-            ({{ correctAnswersCount }}/{{ answeredCount }} correct)
-          </span>
+          <span class="score-preview">({{ answeredCount }} answered)</span>
         </span>
       </div>
 
-      <div class="question-container">
+      <!-- Question Container -->
+      <div class="question-container" v-if="currentQuestion">
         <div class="question-header">
           <h2>Question {{ currentQuestionIndex + 1 }}</h2>
-          <div v-if="timerMode === 'question'" class="question-timer">
-            <i class="fas fa-clock"></i>
-            {{ questionTimeLeft }}s
-          </div>
         </div>
         
         <div class="question-content">
@@ -74,8 +87,10 @@
               :key="index"
               :class="[
                 'option-item', 
-                { 'selected': selectedAnswers[currentQuestion.id] === index + 1 },
-                getOptionClass(index)
+                { 
+                  'selected': selectedAnswers[currentQuestion.id] === index + 1,
+                  'disabled': questionAnswered && autoAdvanceEnabled
+                }
               ]"
             >
               <input 
@@ -83,40 +98,27 @@
                 :name="'question-' + currentQuestion.id"
                 :value="index + 1"
                 v-model="selectedAnswers[currentQuestion.id]"
-                @change="saveAnswer"
-                :disabled="currentQuestionFeedback && timerMode === 'question'"
+                @change="handleAnswerSelect"
+                :disabled="questionAnswered && autoAdvanceEnabled"
               />
+              <span class="option-letter">{{ String.fromCharCode(65 + index) }}.</span>
               <span class="option-text">{{ option }}</span>
-              <span v-if="getOptionClass(index) === 'option-correct'" class="feedback-icon correct">
-                <i class="fas fa-check"></i>
-              </span>
-              <span v-else-if="getOptionClass(index) === 'option-incorrect'" class="feedback-icon incorrect">
-                <i class="fas fa-times"></i>
-              </span>
-              <span v-else-if="getOptionClass(index) === 'option-show-correct'" class="feedback-icon show-correct">
+              <span v-if="selectedAnswers[currentQuestion.id] === index + 1" class="selected-icon">
                 <i class="fas fa-check"></i>
               </span>
             </label>
           </div>
 
-          <!-- Instant Feedback Display -->
-          <div v-if="currentQuestionFeedback" class="feedback-panel" 
-               :class="currentQuestionFeedback.type">
-            <div class="feedback-header">
-              <i v-if="currentQuestionFeedback.isCorrect" class="fas fa-check-circle"></i>
-              <i v-else-if="currentQuestionFeedback.type === 'timeout'" class="fas fa-clock"></i>
-              <i v-else class="fas fa-times-circle"></i>
-              <span>{{ currentQuestionFeedback.message }}</span>
-            </div>
-            <div v-if="currentQuestionFeedback.explanation" class="feedback-explanation">
-              {{ currentQuestionFeedback.explanation }}
-            </div>
+          <!-- Answer Feedback -->
+          <div v-if="questionAnswered && showInstantFeedback" class="feedback-panel">
+            <p class="feedback-message">Answer recorded! Moving to next question...</p>
           </div>
         </div>
       </div>
 
-      <div class="navigation-buttons">
-        <!-- Question Indicators - Always visible -->
+      <!-- Navigation -->
+      <div class="navigation-section">
+        <!-- Question Indicators -->
         <div class="question-indicators">
           <button 
             v-for="(question, index) in questions" 
@@ -125,36 +127,33 @@
             class="indicator-btn"
             :class="{
               'answered': selectedAnswers[question.id],
-              'current': currentQuestionIndex === index,
-              'correct': questionFeedback[question.id] && questionFeedback[question.id].isCorrect,
-              'incorrect': questionFeedback[question.id] && !questionFeedback[question.id].isCorrect
+              'current': currentQuestionIndex === index
             }"
-            :disabled="timerMode === 'question' && index !== currentQuestionIndex"
+            :disabled="autoAdvanceEnabled && index !== currentQuestionIndex"
           >
             {{ index + 1 }}
-            <i v-if="questionFeedback[question.id] && questionFeedback[question.id].isCorrect" 
-               class="fas fa-check indicator-icon"></i>
-            <i v-else-if="questionFeedback[question.id] && !questionFeedback[question.id].isCorrect" 
-               class="fas fa-times indicator-icon"></i>
           </button>
         </div>
         
-        <!-- Navigation Info for Question Timer Mode -->
-        <div v-if="timerMode === 'question'" class="auto-progress-info">
-          <p>
+        <!-- Progress Info -->
+        <div class="progress-info">
+          <p v-if="autoAdvanceEnabled">
             <i class="fas fa-info-circle"></i>
             Questions advance automatically after 30 seconds or when answered
           </p>
+          <p v-else>
+            Use the buttons below to navigate between questions
+          </p>
         </div>
         
-        <!-- Manual Navigation (only for quiz timer mode) -->
-        <div v-else class="manual-navigation">
+        <!-- Manual Navigation (when auto-advance is disabled) -->
+        <div v-if="!autoAdvanceEnabled" class="manual-navigation">
           <button 
             @click="previousQuestion" 
             class="btn-nav"
             :disabled="currentQuestionIndex === 0"
           >
-            ← Previous
+            <i class="fas fa-chevron-left"></i> Previous
           </button>
           
           <button 
@@ -162,14 +161,14 @@
             @click="nextQuestion" 
             class="btn-nav"
           >
-            Next →
+            Next <i class="fas fa-chevron-right"></i>
           </button>
           
           <button 
             v-else
-            @click="submitQuiz" 
+            @click="showSubmitConfirmation" 
             class="btn-submit"
-            :disabled="!canSubmit"
+            :disabled="answeredCount === 0"
           >
             Submit Quiz
           </button>
@@ -177,19 +176,35 @@
       </div>
     </div>
 
-    <!-- Confirmation Modal -->
+    <!-- Submit Confirmation Modal -->
     <div v-if="showConfirmModal" class="modal-overlay" @click="closeConfirmModal">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
-          <h3>Confirm Submission</h3>
+          <h3>Confirm Quiz Submission</h3>
+          <button @click="closeConfirmModal" class="close-btn">
+            <i class="fas fa-times"></i>
+          </button>
         </div>
         <div class="modal-body">
           <p>Are you sure you want to submit your quiz?</p>
-          <p><strong>Answered:</strong> {{ answeredCount }} / {{ questions.length }} questions</p>
-          <p v-if="showInstantFeedback">
-            <strong>Correct so far:</strong> {{ correctAnswersCount }} / {{ answeredCount }}
+          <div class="submission-summary">
+            <div class="summary-item">
+              <span class="label">Total Questions:</span>
+              <span class="value">{{ questions.length }}</span>
+            </div>
+            <div class="summary-item">
+              <span class="label">Answered:</span>
+              <span class="value">{{ answeredCount }}</span>
+            </div>
+            <div class="summary-item">
+              <span class="label">Unanswered:</span>
+              <span class="value">{{ questions.length - answeredCount }}</span>
+            </div>
+          </div>
+          <p v-if="answeredCount < questions.length" class="warning-text">
+            <i class="fas fa-exclamation-triangle"></i>
+            You have {{ questions.length - answeredCount }} unanswered questions.
           </p>
-          <p><strong>Unanswered:</strong> {{ questions.length - answeredCount }} questions</p>
         </div>
         <div class="modal-actions">
           <button @click="closeConfirmModal" class="btn-cancel">Cancel</button>
@@ -197,28 +212,58 @@
         </div>
       </div>
     </div>
+
+    <!-- Expiry Warning Modal -->
+    <div v-if="showExpiryModal" class="modal-overlay">
+      <div class="modal-content expiry-modal">
+        <div class="modal-header">
+          <h3>Quiz Expiring Soon!</h3>
+        </div>
+        <div class="modal-body">
+          <p>This quiz will expire in {{ timeUntilExpiryFormatted }}.</p>
+          <p>Please submit your answers soon to avoid losing your progress.</p>
+        </div>
+        <div class="modal-actions">
+          <button @click="closeExpiryModal" class="btn-primary">I Understand</button>
+          <button @click="showSubmitConfirmation" class="btn-submit">Submit Now</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
-
-// Enhanced QuizTaking.vue with auto-expiry monitoring
-
 export default {
   name: 'QuizTaking',
   data() {
     return {
+      // Quiz identification
       quizId: null,
-      quizDetails: null,
+      
+      // Quiz data
+      quizDetails: {
+        title: '',
+        duration: 0,
+        totalQuestions: 0,
+        chapterName: '',
+        subjectName: ''
+      },
       questions: [],
       currentQuestionIndex: 0,
       selectedAnswers: {},
+      
+      // State management
       loading: true,
+      error: null,
       quizCompleted: false,
+      questionAnswered: false,
+      
+      // Results
       finalScore: 0,
+      correctAnswersCount: 0,
       totalQuestions: 0,
       
-      // Timer management
+      // Timers
       questionTimeLeft: 30,
       questionTimer: null,
       
@@ -227,13 +272,37 @@ export default {
       expiryCheckInterval: null,
       timeUntilExpiry: null,
       showExpiryWarning: false,
+      showExpiryModal: false,
       autoExpireEnabled: false,
       
-      error: null
+      // UI controls
+      showConfirmModal: false,
+      showInstantFeedback: true,
+      autoAdvanceEnabled: true,
+      
+      // Debug
+      showDebug: false,
+      debugInfo: {
+        responseReceived: false,
+        apiCalled: false
+      }
     }
   },
 
   computed: {
+    currentQuestion() {
+      return this.questions[this.currentQuestionIndex] || null
+    },
+    
+    progressPercentage() {
+      if (this.questions.length === 0) return 0
+      return ((this.currentQuestionIndex + 1) / this.questions.length) * 100
+    },
+    
+    answeredCount() {
+      return Object.keys(this.selectedAnswers).length
+    },
+    
     timeUntilExpiryFormatted() {
       if (!this.timeUntilExpiry) return null
       
@@ -254,6 +323,11 @@ export default {
 
   async created() {
     this.quizId = this.$route.params.quizId
+    console.log('QuizTaking component created with quizId:', this.quizId)
+    
+    // Enable debug mode in development
+    this.showDebug = process.env.NODE_ENV === 'development'
+    
     await this.loadQuiz()
   },
 
@@ -263,17 +337,22 @@ export default {
 
   methods: {
     async loadQuiz() {
+      console.log('🚀 Starting to load quiz...')
+      
       try {
-        console.log("Loading quiz with auto-expiry check...")
         this.loading = true
         this.error = null
+        this.debugInfo.apiCalled = true
 
         const token = localStorage.getItem('access_token')
         if (!token) {
+          console.error('No access token found')
           this.$router.push('/login')
           return
         }
 
+        console.log('Making API call to:', `http://localhost:5000/api/user/quiz/${this.quizId}/take`)
+        
         const response = await fetch(`http://localhost:5000/api/user/quiz/${this.quizId}/take`, {
           method: 'GET',
           headers: { 
@@ -282,218 +361,188 @@ export default {
           }
         })
         
+        console.log('API Response status:', response.status)
+        console.log('API Response ok:', response.ok)
+        
+        this.debugInfo.responseReceived = true
+        
         if (response.ok) {
           const data = await response.json()
-          console.log("Quiz data with expiry info:", data)
+          console.log('✅ Quiz data received:', data)
           
+          // Set quiz details
           this.quizDetails = {
-            id: data.quiz_id,
-            title: data.title,
-            duration: data.duration,
-            totalQuestions: data.total_questions,
-            chapterName: data.chapter_name,
-            subjectName: data.subject_name
+            title: data.title || 'Untitled Quiz',
+            duration: data.duration || data.time_duration || 30,
+            totalQuestions: data.total_questions || 0,
+            chapterName: data.chapter_name || '',
+            subjectName: data.subject_name || ''
           }
           
+          // Set questions
           this.questions = data.questions || []
           this.totalQuestions = this.questions.length
           
+          console.log('Questions loaded:', this.questions.length)
+          
+          if (this.questions.length === 0) {
+            throw new Error('No questions available for this quiz')
+          }
+          
           // Set up auto-expiry monitoring
-          this.autoExpireEnabled = data.auto_expire_enabled
+          this.autoExpireEnabled = data.auto_expire_enabled || false
           this.timeUntilExpiry = data.time_remaining_until_expiry
+          this.showInstantFeedback = data.show_results_immediately !== false
           
           if (data.quiz_expires_at) {
             this.quizExpiryTime = new Date(data.quiz_expires_at)
             this.startExpiryMonitoring()
           }
           
+          // Start the question timer
           this.startQuestionTimer()
           
-        } else {
-          const errorData = await response.json()
-          this.error = errorData.error || 'Failed to load quiz'
-          console.error("Quiz loading error:", this.error)
+          console.log('✅ Quiz loading completed successfully')
           
-          // Show specific error for expired quiz
-          if (errorData.quiz_status === 'expired') {
-            alert('This quiz has expired and is no longer available.')
-          } else {
-            alert(this.error)
+        } else {
+          // Handle API errors
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+          console.error('❌ API Error:', errorData)
+          
+          let errorMessage = errorData.error || 'Failed to load quiz'
+          
+          if (response.status === 403) {
+            if (errorData.quiz_status === 'expired') {
+              errorMessage = 'This quiz has expired and is no longer available.'
+            } else if (errorData.quiz_status === 'upcoming') {
+              errorMessage = 'This quiz has not started yet. Please try again later.'
+            }
+          } else if (response.status === 404) {
+            errorMessage = 'Quiz not found. It may have been deleted.'
           }
+          
+          this.error = errorMessage
           
           setTimeout(() => {
             this.$router.push('/dashboard')
-          }, 2000)
+          }, 3000)
         }
 
-      } catch (error) {
-        console.error('Error loading quiz:', error)
-        this.error = error.message || 'Failed to load quiz'
-        alert('Error loading quiz: ' + this.error)
-        this.$router.push('/dashboard')
+      } catch (networkError) {
+        console.error('❌ Network Error:', networkError)
+        this.error = 'Unable to connect to the server. Please check your internet connection.'
+        
+        setTimeout(() => {
+          this.$router.push('/dashboard')
+        }, 3000)
+        
       } finally {
         this.loading = false
+        console.log('Loading state set to false')
       }
-    },
-
-    startExpiryMonitoring() {
-      if (!this.autoExpireEnabled || !this.quizExpiryTime) return
-
-      console.log("Starting quiz expiry monitoring...")
-      console.log("Quiz expires at:", this.quizExpiryTime)
-      
-      // Check expiry every 30 seconds
-      this.expiryCheckInterval = setInterval(() => {
-        this.checkQuizExpiry()
-      }, 30000)
-      
-      // Also check immediately
-      this.checkQuizExpiry()
-    },
-
-    async checkQuizExpiry() {
-      if (!this.autoExpireEnabled) return
-
-      try {
-        const now = new Date()
-        
-        // Calculate time until expiry
-        if (this.quizExpiryTime) {
-          const timeDiff = this.quizExpiryTime.getTime() - now.getTime()
-          this.timeUntilExpiry = Math.max(0, Math.floor(timeDiff / (1000 * 60))) // minutes
-          
-          // Check if quiz has expired
-          if (this.timeUntilExpiry <= 0) {
-            console.log("Quiz has expired!")
-            this.handleQuizExpired()
-            return
-          }
-          
-          // Show warning if expiring soon
-          if (this.timeUntilExpiry <= 5 && !this.showExpiryWarning) {
-            this.showExpiryWarning = true
-            this.showExpiryAlert()
-          }
-        }
-        
-        // Double-check with server every 2 minutes
-        if (Math.floor(Date.now() / 1000) % 120 === 0) {
-          await this.checkQuizStatusWithServer()
-        }
-        
-      } catch (error) {
-        console.error('Error checking quiz expiry:', error)
-      }
-    },
-
-    async checkQuizStatusWithServer() {
-      try {
-        const token = localStorage.getItem('access_token')
-        const response = await fetch(`http://localhost:5000/api/user/quiz/${this.quizId}/status`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        })
-        
-        if (response.ok) {
-          const data = await response.json()
-          
-          if (!data.is_available) {
-            console.log("Server says quiz is no longer available:", data.availability_message)
-            this.handleQuizExpired(data.availability_message)
-          } else {
-            // Update time remaining from server
-            this.timeUntilExpiry = data.time_remaining
-            if (data.expires_at) {
-              this.quizExpiryTime = new Date(data.expires_at)
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error checking quiz status with server:', error)
-      }
-    },
-
-    handleQuizExpired(message = 'This quiz has expired') {
-      this.clearAllTimers()
-      
-      // Show expiry message
-      alert(`${message}\n\nYour quiz attempt will be automatically submitted.`)
-      
-      // Auto-submit if user has answered any questions
-      if (Object.keys(this.selectedAnswers).length > 0) {
-        console.log("Auto-submitting quiz due to expiry...")
-        this.submitAnswers()
-      } else {
-        // No answers to submit, just redirect
-        this.$router.push('/dashboard')
-      }
-    },
-
-    showExpiryAlert() {
-      const timeLeft = this.timeUntilExpiryFormatted
-      alert(`⚠️ Warning: This quiz will expire in ${timeLeft}!\n\nPlease submit your answers soon.`)
     },
 
     startQuestionTimer() {
       this.questionTimeLeft = 30
+      this.questionAnswered = false
+      
+      if (this.questionTimer) {
+        clearInterval(this.questionTimer)
+      }
       
       this.questionTimer = setInterval(() => {
         if (this.questionTimeLeft > 0) {
           this.questionTimeLeft--
         } else {
-          this.moveToNextQuestionOrSubmit()
+          this.handleTimeUp()
         }
       }, 1000)
     },
 
+    handleTimeUp() {
+      console.log('⏰ Time up for question', this.currentQuestionIndex + 1)
+      this.moveToNextQuestionOrSubmit()
+    },
+
+    handleAnswerSelect() {
+      console.log('Answer selected:', this.selectedAnswers[this.currentQuestion.id])
+      this.questionAnswered = true
+      
+      if (this.autoAdvanceEnabled) {
+        // Wait 1.5 seconds before moving to next question
+        setTimeout(() => {
+          this.moveToNextQuestionOrSubmit()
+        }, 1500)
+      }
+    },
+
     moveToNextQuestionOrSubmit() {
+      if (this.currentQuestionIndex < this.questions.length - 1) {
+        this.nextQuestion()
+      } else {
+        // Last question - show submit confirmation
+        this.clearAllTimers()
+        this.showSubmitConfirmation()
+      }
+    },
+
+    nextQuestion() {
       if (this.currentQuestionIndex < this.questions.length - 1) {
         this.currentQuestionIndex++
         this.startQuestionTimer()
-      } else {
-        // Last question - auto submit
-        this.clearAllTimers()
-        this.submitAnswers()
       }
     },
 
-    clearAllTimers() {
+    previousQuestion() {
+      if (this.currentQuestionIndex > 0) {
+        this.currentQuestionIndex--
+        this.startQuestionTimer()
+      }
+    },
+
+    goToQuestion(index) {
+      if (index >= 0 && index < this.questions.length) {
+        this.currentQuestionIndex = index
+        this.startQuestionTimer()
+      }
+    },
+
+    showSubmitConfirmation() {
+      this.showConfirmModal = true
+      // Pause the timer while showing confirmation
       if (this.questionTimer) {
         clearInterval(this.questionTimer)
-        this.questionTimer = null
-      }
-      if (this.expiryCheckInterval) {
-        clearInterval(this.expiryCheckInterval)
-        this.expiryCheckInterval = null
       }
     },
 
-    async saveAnswer() {
-      console.log("Answer saved:", this.selectedAnswers)
-      
-      // Check if quiz is still available before allowing answer
-      if (this.timeUntilExpiry && this.timeUntilExpiry <= 0) {
-        alert('Quiz has expired. Your answer was not saved.')
-        this.handleQuizExpired()
-        return
+    closeConfirmModal() {
+      this.showConfirmModal = false
+      // Resume timer if not on last question
+      if (this.currentQuestionIndex < this.questions.length - 1) {
+        this.startQuestionTimer()
       }
-      
-      // Move to next question after 2 seconds
-      setTimeout(() => {
-        this.moveToNextQuestionOrSubmit()
-      }, 2000)
     },
 
-    async submitAnswers() {
+    async confirmSubmit() {
+      this.closeConfirmModal()
+      await this.submitQuiz()
+    },
+
+    async submitQuiz() {
       try {
-        console.log("Submitting answers with expiry check...")
+        console.log('🚀 Submitting quiz...')
+        this.clearAllTimers()
         
         const token = localStorage.getItem('access_token')
-        const totalTimeSpent = this.questions.length * 30 // Approximate time
+        const totalTimeSpent = this.questions.length * 30 // Approximate
         
+        // Format answers (convert 1-based to 0-based indexing)
         const formattedAnswers = {}
         Object.keys(this.selectedAnswers).forEach(questionId => {
           formattedAnswers[questionId] = this.selectedAnswers[questionId] - 1
         })
+        
+        console.log('Submitting answers:', formattedAnswers)
         
         const response = await fetch(`http://localhost:5000/api/user/quiz/${this.quizId}/submit`, {
           method: 'POST',
@@ -509,12 +558,13 @@ export default {
         
         if (response.ok) {
           const data = await response.json()
-          console.log("Submit response:", data)
+          console.log('✅ Quiz submitted successfully:', data)
           
-          this.finalScore = (data.score && data.score.percentage_score) ? data.score.percentage_score : 0
+          
+          this.finalScore = (data.score && data.score.percentage_score) || 0
+          this.correctAnswersCount = (data.score && data.score.correct_answers) || 0
           this.quizCompleted = true
           
-          // Show warning if quiz expired during submission
           if (data.warning) {
             setTimeout(() => {
               alert(`Note: ${data.warning}`)
@@ -522,54 +572,180 @@ export default {
           }
           
         } else {
-          const errorData = await response.json()
-          console.error("Submit error:", errorData)
+          const errorData = await response.json().catch(() => ({ error: 'Submission failed' }))
+          console.error('❌ Submit error:', errorData)
           
-          if (errorData.error.includes('expired')) {
+          if (errorData.error && errorData.error.includes('expired')) {
             alert('Quiz expired before submission could be completed.')
             this.$router.push('/dashboard')
           } else {
             alert('Error submitting quiz: ' + (errorData.error || 'Unknown error'))
           }
         }
+        
       } catch (error) {
-        console.error('Error submitting quiz:', error)
-        alert('Error submitting quiz. Please try again.')
+        console.error('❌ Submit network error:', error)
+        alert('Network error submitting quiz. Please try again.')
+      }
+    },
+
+    startExpiryMonitoring() {
+      if (!this.autoExpireEnabled || !this.quizExpiryTime) return
+
+      console.log('🕐 Starting expiry monitoring. Quiz expires at:', this.quizExpiryTime)
+      
+      this.expiryCheckInterval = setInterval(() => {
+        this.checkQuizExpiry()
+      }, 30000) // Check every 30 seconds
+      
+      this.checkQuizExpiry() // Check immediately
+    },
+
+    checkQuizExpiry() {
+      if (!this.autoExpireEnabled || !this.quizExpiryTime) return
+
+      const now = new Date()
+      const timeDiff = this.quizExpiryTime.getTime() - now.getTime()
+      this.timeUntilExpiry = Math.max(0, Math.floor(timeDiff / (1000 * 60))) // minutes
+      
+      if (this.timeUntilExpiry <= 0) {
+        console.log('⏰ Quiz has expired!')
+        this.handleQuizExpired()
+      } else if (this.timeUntilExpiry <= 5 && !this.showExpiryWarning) {
+        this.showExpiryWarning = true
+        this.showExpiryModal = true
+      }
+    },
+
+    handleQuizExpired() {
+      this.clearAllTimers()
+      alert('This quiz has expired and will be automatically submitted.')
+      
+      if (Object.keys(this.selectedAnswers).length > 0) {
+        this.submitQuiz()
+      } else {
+        this.$router.push('/dashboard')
+      }
+    },
+
+    closeExpiryModal() {
+      this.showExpiryModal = false
+    },
+
+    clearAllTimers() {
+      if (this.questionTimer) {
+        clearInterval(this.questionTimer)
+        this.questionTimer = null
+      }
+      if (this.expiryCheckInterval) {
+        clearInterval(this.expiryCheckInterval)
+        this.expiryCheckInterval = null
       }
     },
 
     goToDashboard() {
+      this.clearAllTimers()
       this.$router.push('/dashboard')
+    },
+
+    viewResults() {
+      this.$router.push(`/quiz/${this.quizId}/results`)
     }
   }
 }
 </script>
 
 <style scoped>
-/* Enhanced Quiz Styles with Timer and Feedback */
-
 .quiz-taking {
   min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 2rem;
+  padding: 1rem;
 }
 
+/* Loading State */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  color: white;
+  text-align: center;
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-left: 4px solid white;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.debug-info {
+  background: rgba(0, 0, 0, 0.2);
+  padding: 1rem;
+  border-radius: 8px;
+  margin-top: 1rem;
+  font-size: 0.9rem;
+}
+
+/* Error State */
+.error-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+
+.error-card {
+  background: white;
+  padding: 3rem;
+  border-radius: 20px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+  max-width: 500px;
+}
+
+.error-card i {
+  font-size: 3rem;
+  color: #dc3545;
+  margin-bottom: 1rem;
+}
+
+.error-card h2 {
+  color: #333;
+  margin-bottom: 1rem;
+}
+
+.error-card p {
+  color: #666;
+  margin-bottom: 2rem;
+}
+
+/* Quiz Header */
 .quiz-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
   border-radius: 15px;
   padding: 1.5rem;
+  margin-bottom: 2rem;
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .quiz-info h1 {
   color: white;
   margin: 0 0 0.5rem 0;
-  font-size: 2rem;
+  font-size: 1.8rem;
 }
 
 .quiz-info p {
@@ -579,6 +755,19 @@ export default {
 
 .timer-section {
   text-align: center;
+}
+
+.expiry-warning {
+  background: rgba(255, 193, 7, 0.9);
+  color: #856404;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  margin-bottom: 1rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  animation: pulse 2s infinite;
 }
 
 .timer {
@@ -615,103 +804,124 @@ export default {
   font-weight: bold;
 }
 
-.question-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
+/* Progress Bar */
+.progress-bar {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 25px;
+  height: 50px;
+  margin-bottom: 2rem;
+  position: relative;
+  overflow: hidden;
 }
 
-.question-timer {
-  background: rgba(102, 126, 234, 0.1);
-  color: #667eea;
-  padding: 0.5rem 1rem;
-  border-radius: 20px;
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #28a745, #20c997);
+  border-radius: 25px;
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
   font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+.score-preview {
+  opacity: 0.8;
+  font-size: 0.9em;
+}
+
+/* Question Container */
+.question-container {
+  background: white;
+  border-radius: 20px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+}
+
+.question-header h2 {
+  color: #333;
+  margin: 0 0 1.5rem 0;
+}
+
+.question-text {
+  font-size: 1.2rem;
+  color: #333;
+  margin-bottom: 2rem;
+  line-height: 1.6;
+}
+
+/* Options */
+.options-list {
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  flex-direction: column;
+  gap: 1rem;
 }
 
-.progress-text .score-preview {
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 0.85em;
-}
-
-/* Option Feedback Styles */
 .option-item {
   display: flex;
   align-items: center;
   padding: 1rem;
   border: 2px solid #e0e0e0;
-  border-radius: 10px;
+  border-radius: 15px;
   cursor: pointer;
   transition: all 0.3s ease;
-  background: white;
+  background: #f8f9fa;
   position: relative;
 }
 
-.option-item:hover {
+.option-item:hover:not(.disabled) {
   border-color: #667eea;
-  background: #f8f9ff;
+  background: #f0f4ff;
+  transform: translateY(-2px);
 }
 
 .option-item.selected {
   border-color: #667eea;
-  background: #f0f4ff;
+  background: #e3f2fd;
 }
 
-/* Feedback-specific option styles */
-.option-item.option-correct {
-  border-color: #28a745;
-  background: #d4edda;
-  color: #155724;
+.option-item.disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
-.option-item.option-incorrect {
-  border-color: #dc3545;
-  background: #f8d7da;
-  color: #721c24;
+.option-item input[type="radio"] {
+  margin-right: 1rem;
+  transform: scale(1.2);
 }
 
-.option-item.option-show-correct {
-  border-color: #28a745;
-  background: #d4edda;
-  color: #155724;
-  animation: highlight 2s ease-in-out;
-}
-
-@keyframes highlight {
-  0% { background: #d4edda; }
-  50% { background: #b4d6bb; }
-  100% { background: #d4edda; }
-}
-
-.feedback-icon {
-  position: absolute;
-  right: 1rem;
-  font-size: 1.2rem;
+.option-letter {
   font-weight: bold;
+  color: #667eea;
+  margin-right: 0.5rem;
+  min-width: 20px;
 }
 
-.feedback-icon.correct {
+.option-text {
+  flex: 1;
+  font-size: 1.1rem;
+}
+
+.selected-icon {
   color: #28a745;
-}
-
-.feedback-icon.incorrect {
-  color: #dc3545;
-}
-
-.feedback-icon.show-correct {
-  color: #28a745;
+  font-size: 1.2rem;
 }
 
 /* Feedback Panel */
 .feedback-panel {
   margin-top: 1.5rem;
   padding: 1rem;
+  background: #d4edda;
+  border: 1px solid #c3e6cb;
   border-radius: 10px;
-  border-left: 4px solid;
+  color: #155724;
   animation: slideIn 0.3s ease-out;
 }
 
@@ -726,43 +936,17 @@ export default {
   }
 }
 
-.feedback-panel.correct {
-  background: #d4edda;
-  border-left-color: #28a745;
-  color: #155724;
-}
-
-.feedback-panel.incorrect {
-  background: #f8d7da;
-  border-left-color: #dc3545;
-  color: #721c24;
-}
-
-.feedback-panel.timeout {
-  background: #fff3cd;
-  border-left-color: #ffc107;
-  color: #856404;
-}
-
-.feedback-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+.feedback-message {
+  margin: 0;
   font-weight: 600;
-  margin-bottom: 0.5rem;
 }
 
-.feedback-explanation {
-  font-style: italic;
-  opacity: 0.9;
-}
-
-/* Navigation Styles */
-.navigation-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  align-items: center;
+/* Navigation */
+.navigation-section {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 15px;
+  padding: 1.5rem;
+  backdrop-filter: blur(10px);
 }
 
 .question-indicators {
@@ -770,31 +954,9 @@ export default {
   gap: 0.5rem;
   flex-wrap: wrap;
   justify-content: center;
+  margin-bottom: 1.5rem;
 }
 
-.auto-progress-info {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-  padding: 1rem;
-  text-align: center;
-}
-
-.auto-progress-info p {
-  color: white;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.manual-navigation {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-}
-
-/* Enhanced Question Indicators */
 .indicator-btn {
   width: 40px;
   height: 40px;
@@ -805,11 +967,14 @@ export default {
   cursor: pointer;
   font-weight: 600;
   transition: all 0.3s ease;
-  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .indicator-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.1);
 }
 
 .indicator-btn:disabled {
@@ -818,48 +983,49 @@ export default {
 }
 
 .indicator-btn.answered {
-  background: #48dbfb;
-  border-color: #48dbfb;
+  background: #28a745;
+  border-color: #28a745;
 }
 
 .indicator-btn.current {
   background: #667eea;
   border-color: #667eea;
-  transform: scale(1.1);
+  transform: scale(1.2);
 }
 
-.indicator-btn.correct {
-  background: #28a745;
-  border-color: #28a745;
+.progress-info {
+  text-align: center;
+  margin-bottom: 1.5rem;
 }
 
-.indicator-btn.incorrect {
-  background: #dc3545;
-  border-color: #dc3545;
-}
-
-.indicator-icon {
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  background: white;
-  border-radius: 50%;
-  width: 16px;
-  height: 16px;
+.progress-info p {
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.7rem;
+  gap: 0.5rem;
 }
 
-/* Button Styles */
-.btn-nav, .btn-submit {
+.manual-navigation {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Buttons */
+.btn-nav, .btn-submit, .btn-primary, .btn-secondary, .btn-cancel, .btn-confirm {
   padding: 0.75rem 1.5rem;
   border-radius: 25px;
   border: none;
   cursor: pointer;
   font-weight: 600;
   transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-decoration: none;
 }
 
 .btn-nav {
@@ -881,6 +1047,8 @@ export default {
 .btn-submit {
   background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
   color: white;
+  font-size: 1.1rem;
+  padding: 1rem 2rem;
 }
 
 .btn-submit:hover:not(:disabled) {
@@ -893,15 +1061,66 @@ export default {
   cursor: not-allowed;
 }
 
-/* Completion Card Enhancements */
+.btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.btn-secondary {
+  background: #6c757d;
+  color: white;
+}
+
+.btn-secondary:hover {
+  background: #5a6268;
+  transform: translateY(-2px);
+}
+
+.btn-cancel {
+  background: #6c757d;
+  color: white;
+}
+
+.btn-cancel:hover {
+  background: #5a6268;
+}
+
+.btn-confirm {
+  background: #28a745;
+  color: white;
+}
+
+.btn-confirm:hover {
+  background: #218838;
+}
+
+/* Quiz Completion */
+.quiz-completed {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 70vh;
+}
+
 .completion-card {
-  background: rgba(255, 255, 255, 0.95);
+  background: white;
   border-radius: 20px;
   padding: 3rem;
   text-align: center;
   box-shadow: 0 10px 30px rgba(0,0,0,0.1);
   max-width: 500px;
   width: 100%;
+}
+
+.completion-icon {
+  font-size: 4rem;
+  color: #28a745;
+  margin-bottom: 1rem;
 }
 
 .completion-card h2 {
@@ -925,27 +1144,158 @@ export default {
   font-size: 1.1rem;
 }
 
+.completion-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+/* Modals */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 15px;
+  padding: 2rem;
+  max-width: 500px;
+  width: 100%;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+  position: relative;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: #333;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #666;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.close-btn:hover {
+  color: #333;
+}
+
+.modal-body {
+  margin-bottom: 2rem;
+}
+
+.modal-body p {
+  color: #666;
+  margin-bottom: 1rem;
+}
+
+.submission-summary {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 10px;
+  margin: 1rem 0;
+}
+
+.summary-item {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.summary-item:last-child {
+  margin-bottom: 0;
+}
+
+.label {
+  font-weight: 600;
+  color: #333;
+}
+
+.value {
+  color: #667eea;
+  font-weight: 600;
+}
+
+.warning-text {
+  color: #dc3545;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+.expiry-modal {
+  border: 3px solid #ffc107;
+}
+
+.expiry-modal .modal-header {
+  color: #856404;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .quiz-taking {
-    padding: 1rem;
+    padding: 0.5rem;
   }
   
   .quiz-header {
     flex-direction: column;
     gap: 1rem;
     text-align: center;
+    padding: 1rem;
   }
   
-  .question-header {
-    flex-direction: column;
-    gap: 0.5rem;
-    align-items: stretch;
-    text-align: center;
+  .quiz-info h1 {
+    font-size: 1.5rem;
   }
   
-  .navigation-buttons {
-    gap: 1rem;
+  .question-container {
+    padding: 1.5rem;
+  }
+  
+  .question-text {
+    font-size: 1.1rem;
+  }
+  
+  .option-item {
+    padding: 0.75rem;
+  }
+  
+  .option-text {
+    font-size: 1rem;
   }
   
   .manual-navigation {
@@ -953,36 +1303,44 @@ export default {
     gap: 1rem;
   }
   
-  .feedback-panel {
-    margin-top: 1rem;
-    padding: 0.75rem;
-  }
-}
-  .quiz-header {
+  .completion-actions {
     flex-direction: column;
-    gap: 1rem;
-    text-align: center;
   }
   
-  .question-header {
-    flex-direction: column;
-    gap: 0.5rem;
-    align-items: stretch;
-    text-align: center;
+  .modal-content {
+    margin: 1rem;
+    padding: 1.5rem;
   }
   
-  .navigation-buttons {
+  .modal-actions {
     flex-direction: column;
-    gap: 1rem;
   }
   
   .question-indicators {
-    order: -1;
+    gap: 0.3rem;
   }
   
-  .feedback-panel {
-    margin-top: 1rem;
-    padding: 0.75rem;
+  .indicator-btn {
+    width: 35px;
+    height: 35px;
+    font-size: 0.9rem;
   }
+}
 
-</style> 
+@media (max-width: 480px) {
+  .quiz-info h1 {
+    font-size: 1.3rem;
+  }
+  
+  .completion-card {
+    padding: 2rem;
+  }
+  
+  .score-display h3 {
+    font-size: 2rem;
+  }
+  
+  .timer-value {
+    font-size: 1.3rem;
+  }
+}
