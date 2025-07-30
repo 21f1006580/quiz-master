@@ -12,7 +12,7 @@ import SubjectQuizzes from '../views/SubjectQuizzes.vue'
 import QuizTaking from '../views/QuizTaking.vue'
 import QuizSummary from '../views/QuizSummary.vue'
 import ScoresPage from '../views/ScoresPage.vue'
-import QuizList from '@/components/Admin/QuizList.vue'
+
 
 Vue.use(VueRouter);
 
@@ -21,8 +21,8 @@ const routes = [
     {path : '/login', component: Login},
     {path : '/register', component: Register},
     {path: '/dashboard', component: UserDashboard},
-    {path: '/user/subject/:subjectId/quizzes', component: SubjectQuizzes},
-    {path: '/quiz/:quizId', component: QuizTaking},
+    {path: '/user/subjects/:subjectId/quizzes', component: SubjectQuizzes},
+    {path: '/user/quiz/:quizId/take', component: QuizTaking},
     {path: '/quiz-summary/:quizId', component: QuizSummary},
     {path: '/scores', component: ScoresPage},
     {path: '/admin/subjects', component: SubjectManager},
@@ -30,7 +30,8 @@ const routes = [
     {path: '/admin/quizzes', component: () => import('../components/Admin/QuizList.vue')},
     {path: '/admin/questions', component: () => import('../components/Admin/QuestionList.vue')},
     {path: '/admin/users', component: () => import('../components/Admin/UserList.vue')},
-    {path: '/admin', component: AdminDashboard}
+    {path: '/admin', component: AdminDashboard},
+  
 ]
 
 // Define the router instance

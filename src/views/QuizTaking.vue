@@ -130,6 +130,7 @@
 </template>
 
 <script>
+// Fixed QuizTaking.vue component
 export default {
   name: 'QuizTaking',
   data() {
@@ -145,7 +146,8 @@ export default {
       totalQuestions: 0,
       timeLeft: 0,
       timer: null,
-      showConfirmModal: false
+      showConfirmModal: false,
+      error: null
     }
   },
   computed: {
@@ -153,7 +155,7 @@ export default {
       return this.questions[this.currentQuestionIndex] || {}
     },
     progressPercentage() {
-      return ((this.currentQuestionIndex + 1) / this.questions.length) * 100
+      return this.questions.length > 0 ? ((this.currentQuestionIndex + 1) / this.questions.length) * 100 : 0
     },
     answeredCount() {
       return Object.keys(this.selectedAnswers).length
@@ -164,8 +166,8 @@ export default {
   },
   async created() {
     this.quizId = this.$route.params.quizId
+    console.log("Quiz ID from route:", this.quizId)
     await this.loadQuiz()
-    this.startTimer()
   },
   beforeDestroy() {
     if (this.timer) {
@@ -175,34 +177,84 @@ export default {
   methods: {
     async loadQuiz() {
       try {
+        console.log("Loading quiz with ID:", this.quizId)
+        this.loading = true
+        this.error = null
+
         const token = localStorage.getItem('access_token')
-        const response = await fetch(`/api/user/quiz/${this.quizId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
+        if (!token) {
+          console.log("No token found, redirecting to login")
+          this.$router.push('/login')
+          return
+        }
+
+        // FIXED: Use the correct endpoint that matches your Flask route
+        const response = await fetch(`http://localhost:5000/api/user/quiz/${this.quizId}/take`, {
+          method: 'GET',
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
         })
+        
+        console.log("Quiz API response status:", response.status)
         
         if (response.ok) {
           const data = await response.json()
-          this.quizDetails = data
-          this.questions = data.questions
-          this.timeLeft = data.duration * 60 // Convert to seconds
+          console.log("Quiz data received:", data)
+          
+          // Store the full quiz details
+          this.quizDetails = {
+            id: data.quiz_id,
+            title: data.title,
+            duration: data.duration,
+            totalQuestions: data.total_questions,
+            chapterName: data.chapter_name,
+            subjectName: data.subject_name
+          }
+          
+          this.questions = data.questions || []
           this.totalQuestions = this.questions.length
+          
+          // FIXED: Only start timer if we have valid duration
+          if (data.duration && data.duration > 0) {
+            this.timeLeft = data.duration * 60 // Convert to seconds
+            this.startTimer()
+          }
+          
+          console.log("Questions loaded:", this.questions.length)
+          console.log("Quiz details:", this.quizDetails)
+          
         } else {
-          console.error('Failed to load quiz')
-          this.$router.push('/dashboard')
+          const errorData = await response.json()
+          this.error = errorData.error || 'Failed to load quiz'
+          console.error("Quiz loading error:", this.error)
+          
+          // Show error message and redirect after delay
+          alert(this.error)
+          setTimeout(() => {
+            this.$router.push('/user/dashboard')
+          }, 2000)
         }
+
       } catch (error) {
         console.error('Error loading quiz:', error)
-        this.$router.push('/dashboard')
+        this.error = error.message || 'Failed to load quiz'
+        alert('Error loading quiz: ' + this.error)
+        this.$router.push('/user/dashboard')
       } finally {
         this.loading = false
       }
     },
 
     startTimer() {
+      if (this.timeLeft <= 0) return
+      
       this.timer = setInterval(() => {
         if (this.timeLeft > 0) {
           this.timeLeft--
         } else {
+          console.log("Time's up! Auto-submitting quiz")
           this.submitQuiz()
         }
       }, 1000)
@@ -215,7 +267,7 @@ export default {
     },
 
     saveAnswer() {
-      // Answer is automatically saved when radio button changes
+      console.log("Answer saved:", this.selectedAnswers)
     },
 
     previousQuestion() {
@@ -235,6 +287,8 @@ export default {
     },
 
     submitQuiz() {
+      console.log("Submit quiz called, answered count:", this.answeredCount)
+      
       if (this.answeredCount === 0) {
         alert('Please answer at least one question before submitting.')
         return
@@ -253,28 +307,45 @@ export default {
 
     async submitAnswers() {
       try {
+        console.log("Submitting answers:", this.selectedAnswers)
+        
         const token = localStorage.getItem('access_token')
-        const response = await fetch('/api/user/quiz/submit', {
+        const startTime = Date.now()
+        
+        // FIXED: Convert selectedAnswers to the format expected by backend
+        const formattedAnswers = {}
+        Object.keys(this.selectedAnswers).forEach(questionId => {
+          // Convert to 0-based index for backend
+          formattedAnswers[questionId] = this.selectedAnswers[questionId] - 1
+        })
+        
+        const response = await fetch(`http://localhost:5000/api/user/quiz/${this.quizId}/submit`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
           body: JSON.stringify({
-            quiz_id: this.quizId,
-            answers: this.selectedAnswers
+            answers: formattedAnswers,
+            time_taken: Math.floor((Date.now() - startTime) / 1000)
           })
         })
         
+        console.log("Submit response status:", response.status)
+        
         if (response.ok) {
           const data = await response.json()
-          this.finalScore = data.score
+          console.log("Submit response data:", data)
+          
+          this.finalScore = (data.score && data.score.percentage_score) ? data.score.percentage_score : 0
           this.quizCompleted = true
+          
           if (this.timer) {
             clearInterval(this.timer)
           }
         } else {
           const errorData = await response.json()
+          console.error("Submit error:", errorData)
           alert('Error submitting quiz: ' + (errorData.error || 'Unknown error'))
         }
       } catch (error) {
@@ -284,11 +355,11 @@ export default {
     },
 
     goToDashboard() {
-      this.$router.push('/dashboard')
+      this.$router.push('/user/dashboard')
     },
 
     viewResults() {
-      this.$router.push(`/quiz-summary/${this.quizId}`)
+      this.$router.push(`/user/quiz/${this.quizId}/results`)
     }
   }
 }
