@@ -2,14 +2,26 @@
   <div class="quiz-taking">
     <div class="quiz-header">
       <div class="quiz-info">
-        <h1>Quiz #{{ quizId }}</h1>
-        <p v-if="quizDetails">Duration: {{ quizDetails.duration }} minutes</p>
+        <h1>{{ quizDetails ? quizDetails.title : `Quiz #${quizId}` }}</h1>
+        <p v-if="quizDetails">
+          {{ quizDetails.subjectName }} - {{ quizDetails.chapterName }}
+        </p>
+        <p v-if="quizDetails && timerMode === 'quiz'">
+          Duration: {{ quizDetails.duration }} minutes
+        </p>
       </div>
       
       <div class="timer-section">
-        <div class="timer" :class="{ 'timer-warning': timeLeft < 300 }">
-          <span class="timer-label">Time Remaining:</span>
+        <!-- Quiz Timer -->
+        <div v-if="timerMode === 'quiz'" class="timer" :class="{ 'timer-warning': timeLeft < 300 }">
+          <span class="timer-label">Quiz Time Remaining:</span>
           <span class="timer-value">{{ formatTime(timeLeft) }}</span>
+        </div>
+        
+        <!-- Question Timer -->
+        <div v-else-if="timerMode === 'question'" class="timer" :class="{ 'timer-warning': questionTimeLeft < 10 }">
+          <span class="timer-label">Question Time:</span>
+          <span class="timer-value">{{ formatTime(questionTimeLeft) }}</span>
         </div>
       </div>
     </div>
@@ -23,8 +35,8 @@
       <div class="completion-card">
         <h2>Quiz Completed!</h2>
         <div class="score-display">
-          <h3>Your Score: {{ finalScore }}</h3>
-          <p>Out of {{ totalQuestions }} questions</p>
+          <h3>Your Score: {{ finalScore }}%</h3>
+          <p>{{ correctAnswersCount }} out of {{ totalQuestions }} questions correct</p>
         </div>
         <div class="completion-actions">
           <button @click="goToDashboard" class="btn-primary">Back to Dashboard</button>
@@ -36,12 +48,21 @@
     <div v-else class="quiz-content">
       <div class="progress-bar">
         <div class="progress-fill" :style="{ width: progressPercentage + '%' }"></div>
-        <span class="progress-text">Question {{ currentQuestionIndex + 1 }} of {{ questions.length }}</span>
+        <span class="progress-text">
+          Question {{ currentQuestionIndex + 1 }} of {{ questions.length }}
+          <span v-if="showInstantFeedback" class="score-preview">
+            ({{ correctAnswersCount }}/{{ answeredCount }} correct)
+          </span>
+        </span>
       </div>
 
       <div class="question-container">
         <div class="question-header">
           <h2>Question {{ currentQuestionIndex + 1 }}</h2>
+          <div v-if="timerMode === 'question'" class="question-timer">
+            <i class="fas fa-clock"></i>
+            {{ questionTimeLeft }}s
+          </div>
         </div>
         
         <div class="question-content">
@@ -51,7 +72,11 @@
             <label 
               v-for="(option, index) in currentQuestion.options" 
               :key="index"
-              :class="['option-item', { 'selected': selectedAnswers[currentQuestion.id] === index + 1 }]"
+              :class="[
+                'option-item', 
+                { 'selected': selectedAnswers[currentQuestion.id] === index + 1 },
+                getOptionClass(index)
+              ]"
             >
               <input 
                 type="radio" 
@@ -59,22 +84,39 @@
                 :value="index + 1"
                 v-model="selectedAnswers[currentQuestion.id]"
                 @change="saveAnswer"
+                :disabled="currentQuestionFeedback && timerMode === 'question'"
               />
               <span class="option-text">{{ option }}</span>
+              <span v-if="getOptionClass(index) === 'option-correct'" class="feedback-icon correct">
+                <i class="fas fa-check"></i>
+              </span>
+              <span v-else-if="getOptionClass(index) === 'option-incorrect'" class="feedback-icon incorrect">
+                <i class="fas fa-times"></i>
+              </span>
+              <span v-else-if="getOptionClass(index) === 'option-show-correct'" class="feedback-icon show-correct">
+                <i class="fas fa-check"></i>
+              </span>
             </label>
+          </div>
+
+          <!-- Instant Feedback Display -->
+          <div v-if="currentQuestionFeedback" class="feedback-panel" 
+               :class="currentQuestionFeedback.type">
+            <div class="feedback-header">
+              <i v-if="currentQuestionFeedback.isCorrect" class="fas fa-check-circle"></i>
+              <i v-else-if="currentQuestionFeedback.type === 'timeout'" class="fas fa-clock"></i>
+              <i v-else class="fas fa-times-circle"></i>
+              <span>{{ currentQuestionFeedback.message }}</span>
+            </div>
+            <div v-if="currentQuestionFeedback.explanation" class="feedback-explanation">
+              {{ currentQuestionFeedback.explanation }}
+            </div>
           </div>
         </div>
       </div>
 
       <div class="navigation-buttons">
-        <button 
-          @click="previousQuestion" 
-          class="btn-nav"
-          :disabled="currentQuestionIndex === 0"
-        >
-          ← Previous
-        </button>
-        
+        <!-- Question Indicators - Always visible -->
         <div class="question-indicators">
           <button 
             v-for="(question, index) in questions" 
@@ -83,29 +125,55 @@
             class="indicator-btn"
             :class="{
               'answered': selectedAnswers[question.id],
-              'current': currentQuestionIndex === index
+              'current': currentQuestionIndex === index,
+              'correct': questionFeedback[question.id] && questionFeedback[question.id].isCorrect,
+              'incorrect': questionFeedback[question.id] && !questionFeedback[question.id].isCorrect
             }"
+            :disabled="timerMode === 'question' && index !== currentQuestionIndex"
           >
             {{ index + 1 }}
+            <i v-if="questionFeedback[question.id] && questionFeedback[question.id].isCorrect" 
+               class="fas fa-check indicator-icon"></i>
+            <i v-else-if="questionFeedback[question.id] && !questionFeedback[question.id].isCorrect" 
+               class="fas fa-times indicator-icon"></i>
           </button>
         </div>
         
-        <button 
-          v-if="currentQuestionIndex < questions.length - 1"
-          @click="nextQuestion" 
-          class="btn-nav"
-        >
-          Next →
-        </button>
+        <!-- Navigation Info for Question Timer Mode -->
+        <div v-if="timerMode === 'question'" class="auto-progress-info">
+          <p>
+            <i class="fas fa-info-circle"></i>
+            Questions advance automatically after 30 seconds or when answered
+          </p>
+        </div>
         
-        <button 
-          v-else
-          @click="submitQuiz" 
-          class="btn-submit"
-          :disabled="!canSubmit"
-        >
-          Submit Quiz
-        </button>
+        <!-- Manual Navigation (only for quiz timer mode) -->
+        <div v-else class="manual-navigation">
+          <button 
+            @click="previousQuestion" 
+            class="btn-nav"
+            :disabled="currentQuestionIndex === 0"
+          >
+            ← Previous
+          </button>
+          
+          <button 
+            v-if="currentQuestionIndex < questions.length - 1"
+            @click="nextQuestion" 
+            class="btn-nav"
+          >
+            Next →
+          </button>
+          
+          <button 
+            v-else
+            @click="submitQuiz" 
+            class="btn-submit"
+            :disabled="!canSubmit"
+          >
+            Submit Quiz
+          </button>
+        </div>
       </div>
     </div>
 
@@ -118,6 +186,9 @@
         <div class="modal-body">
           <p>Are you sure you want to submit your quiz?</p>
           <p><strong>Answered:</strong> {{ answeredCount }} / {{ questions.length }} questions</p>
+          <p v-if="showInstantFeedback">
+            <strong>Correct so far:</strong> {{ correctAnswersCount }} / {{ answeredCount }}
+          </p>
           <p><strong>Unanswered:</strong> {{ questions.length - answeredCount }} questions</p>
         </div>
         <div class="modal-actions">
@@ -130,7 +201,8 @@
 </template>
 
 <script>
-// Fixed QuizTaking.vue component
+
+// QuizTaking.vue with Timer and Instant Feedback
 export default {
   name: 'QuizTaking',
   data() {
@@ -140,6 +212,7 @@ export default {
       questions: [],
       currentQuestionIndex: 0,
       selectedAnswers: {},
+      questionFeedback: {}, // Store feedback for each question
       loading: true,
       quizCompleted: false,
       finalScore: 0,
@@ -147,7 +220,15 @@ export default {
       timeLeft: 0,
       timer: null,
       showConfirmModal: false,
-      error: null
+      error: null,
+      // Timer settings
+      timerMode: 'quiz', // 'quiz' | 'question' | 'none'
+      questionTimeLimit: 30, // seconds per question
+      questionTimeLeft: 0,
+      questionTimer: null,
+      // Feedback settings
+      showInstantFeedback: true,
+      feedbackDelay: 1500, // ms to show feedback before moving to next
     }
   },
   computed: {
@@ -162,6 +243,15 @@ export default {
     },
     canSubmit() {
       return this.answeredCount > 0
+    },
+    currentQuestionFeedback() {
+      return this.questionFeedback[this.currentQuestion.id] || null
+    },
+    isQuestionAnswered() {
+      return this.selectedAnswers[this.currentQuestion.id] !== undefined
+    },
+    correctAnswersCount() {
+      return Object.values(this.questionFeedback).filter(f => f.isCorrect).length
     }
   },
   async created() {
@@ -170,9 +260,7 @@ export default {
     await this.loadQuiz()
   },
   beforeDestroy() {
-    if (this.timer) {
-      clearInterval(this.timer)
-    }
+    this.clearAllTimers()
   },
   methods: {
     async loadQuiz() {
@@ -188,7 +276,6 @@ export default {
           return
         }
 
-        // FIXED: Use the correct endpoint that matches your Flask route
         const response = await fetch(`http://localhost:5000/api/user/quiz/${this.quizId}/take`, {
           method: 'GET',
           headers: { 
@@ -203,7 +290,6 @@ export default {
           const data = await response.json()
           console.log("Quiz data received:", data)
           
-          // Store the full quiz details
           this.quizDetails = {
             id: data.quiz_id,
             title: data.title,
@@ -216,11 +302,8 @@ export default {
           this.questions = data.questions || []
           this.totalQuestions = this.questions.length
           
-          // FIXED: Only start timer if we have valid duration
-          if (data.duration && data.duration > 0) {
-            this.timeLeft = data.duration * 60 // Convert to seconds
-            this.startTimer()
-          }
+          // Determine timer mode based on quiz settings
+          this.setupTimers(data)
           
           console.log("Questions loaded:", this.questions.length)
           console.log("Quiz details:", this.quizDetails)
@@ -230,10 +313,9 @@ export default {
           this.error = errorData.error || 'Failed to load quiz'
           console.error("Quiz loading error:", this.error)
           
-          // Show error message and redirect after delay
           alert(this.error)
           setTimeout(() => {
-            this.$router.push('/user/dashboard')
+            this.$router.push('/dashboard')
           }, 2000)
         }
 
@@ -241,23 +323,71 @@ export default {
         console.error('Error loading quiz:', error)
         this.error = error.message || 'Failed to load quiz'
         alert('Error loading quiz: ' + this.error)
-        this.$router.push('/user/dashboard')
+        this.$router.push('/dashboard')
       } finally {
         this.loading = false
       }
     },
 
-    startTimer() {
+    setupTimers(data) {
+      // Force question timer mode with 30 seconds per question
+      this.timerMode = 'question'
+      this.questionTimeLimit = 30 // Force 30 seconds per question
+      this.questionTimeLeft = this.questionTimeLimit
+      this.startQuestionTimer()
+    },
+
+    startQuizTimer() {
       if (this.timeLeft <= 0) return
       
       this.timer = setInterval(() => {
         if (this.timeLeft > 0) {
           this.timeLeft--
         } else {
-          console.log("Time's up! Auto-submitting quiz")
+          console.log("Quiz time's up! Auto-submitting")
           this.submitQuiz()
         }
       }, 1000)
+    },
+
+    startQuestionTimer() {
+      this.questionTimeLeft = this.questionTimeLimit
+      
+      this.questionTimer = setInterval(() => {
+        if (this.questionTimeLeft > 0) {
+          this.questionTimeLeft--
+        } else {
+          console.log("Question time's up! Moving to next question")
+          this.handleQuestionTimeout()
+        }
+      }, 1000)
+    },
+
+    handleQuestionTimeout() {
+      console.log("Question time's up! Moving to next question")
+      
+      // If no answer was selected, mark as unanswered
+      if (!this.isQuestionAnswered) {
+        this.questionFeedback[this.currentQuestion.id] = {
+          isCorrect: false,
+          message: "Time's up! No answer selected.",
+          type: 'timeout'
+        }
+      }
+      
+      // Always move to next question or submit after timeout
+      this.moveToNextQuestionOrSubmit()
+    },
+
+    clearAllTimers() {
+      if (this.timer) {
+        clearInterval(this.timer)
+        this.timer = null
+      }
+      if (this.questionTimer) {
+        clearInterval(this.questionTimer)
+        this.questionTimer = null
+      }
     },
 
     formatTime(seconds) {
@@ -266,24 +396,97 @@ export default {
       return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`
     },
 
-    saveAnswer() {
+    async saveAnswer() {
       console.log("Answer saved:", this.selectedAnswers)
+      
+      if (this.showInstantFeedback && this.isQuestionAnswered) {
+        await this.checkAnswerInstantly()
+      }
+    },
+
+    async checkAnswerInstantly() {
+      const questionId = this.currentQuestion.id
+      const selectedOption = this.selectedAnswers[questionId]
+      
+      // Get correct answer from backend
+      try {
+        const token = localStorage.getItem('access_token')
+        const response = await fetch(`http://localhost:5000/api/user/question/${questionId}/check`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            selected_option: selectedOption - 1 // Convert to 0-based
+          })
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          
+          this.questionFeedback[questionId] = {
+            isCorrect: data.is_correct,
+            correctOption: data.correct_option,
+            explanation: data.explanation || '',
+            message: data.is_correct ? 
+              "Correct! Well done!" : 
+              `Incorrect. The correct answer is option ${data.correct_option}.`,
+            type: data.is_correct ? 'correct' : 'incorrect'
+          }
+
+          // Auto-move to next question after showing feedback for 2 seconds
+          setTimeout(() => {
+            this.moveToNextQuestionOrSubmit()
+          }, 2000)
+        }
+      } catch (error) {
+        console.error('Error checking answer:', error)
+        // If API call fails, still move to next question
+        setTimeout(() => {
+          this.moveToNextQuestionOrSubmit()
+        }, 1000)
+      }
+    },
+
+    moveToNextQuestionOrSubmit() {
+      if (this.currentQuestionIndex < this.questions.length - 1) {
+        // Move to next question
+        this.currentQuestionIndex++
+        this.resetQuestionTimer()
+      } else {
+        // Last question - auto submit
+        console.log("Last question completed, auto-submitting quiz")
+        this.clearAllTimers()
+        this.submitAnswers() // Direct submit without confirmation modal
+      }
     },
 
     previousQuestion() {
       if (this.currentQuestionIndex > 0) {
         this.currentQuestionIndex--
+        this.resetQuestionTimer()
       }
     },
 
     nextQuestion() {
       if (this.currentQuestionIndex < this.questions.length - 1) {
         this.currentQuestionIndex++
+        this.resetQuestionTimer()
+      }
+    },
+
+    resetQuestionTimer() {
+      if (this.timerMode === 'question') {
+        clearInterval(this.questionTimer)
+        this.questionTimeLeft = this.questionTimeLimit
+        this.startQuestionTimer()
       }
     },
 
     goToQuestion(index) {
       this.currentQuestionIndex = index
+      this.resetQuestionTimer()
     },
 
     submitQuiz() {
@@ -298,6 +501,7 @@ export default {
 
     async confirmSubmit() {
       this.showConfirmModal = false
+      this.clearAllTimers()
       await this.submitAnswers()
     },
 
@@ -310,12 +514,12 @@ export default {
         console.log("Submitting answers:", this.selectedAnswers)
         
         const token = localStorage.getItem('access_token')
-        const startTime = Date.now()
+        const totalTimeSpent = this.timerMode === 'quiz' ? 
+          (this.quizDetails.duration * 60 - this.timeLeft) : 
+          (this.questions.length * this.questionTimeLimit)
         
-        // FIXED: Convert selectedAnswers to the format expected by backend
         const formattedAnswers = {}
         Object.keys(this.selectedAnswers).forEach(questionId => {
-          // Convert to 0-based index for backend
           formattedAnswers[questionId] = this.selectedAnswers[questionId] - 1
         })
         
@@ -327,7 +531,7 @@ export default {
           },
           body: JSON.stringify({
             answers: formattedAnswers,
-            time_taken: Math.floor((Date.now() - startTime) / 1000)
+            time_taken: totalTimeSpent
           })
         })
         
@@ -340,9 +544,6 @@ export default {
           this.finalScore = (data.score && data.score.percentage_score) ? data.score.percentage_score : 0
           this.quizCompleted = true
           
-          if (this.timer) {
-            clearInterval(this.timer)
-          }
         } else {
           const errorData = await response.json()
           console.error("Submit error:", errorData)
@@ -355,17 +556,39 @@ export default {
     },
 
     goToDashboard() {
-      this.$router.push('/user/dashboard')
+      this.$router.push('/dashboard')
     },
 
     viewResults() {
       this.$router.push(`/user/quiz/${this.quizId}/results`)
+    },
+
+    getOptionClass(optionIndex) {
+      const questionId = this.currentQuestion.id
+      const feedback = this.questionFeedback[questionId]
+      const selectedOption = this.selectedAnswers[questionId]
+      
+      if (!feedback) return ''
+      
+      const currentOptionNumber = optionIndex + 1
+      
+      if (selectedOption === currentOptionNumber) {
+        return feedback.isCorrect ? 'option-correct' : 'option-incorrect'
+      }
+      
+      if (feedback.correctOption === currentOptionNumber && !feedback.isCorrect) {
+        return 'option-show-correct'
+      }
+      
+      return ''
     }
   }
 }
 </script>
 
 <style scoped>
+/* Enhanced Quiz Styles with Timer and Feedback */
+
 .quiz-taking {
   min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -392,7 +615,7 @@ export default {
 
 .quiz-info p {
   color: rgba(255, 255, 255, 0.8);
-  margin: 0;
+  margin: 0.25rem 0;
 }
 
 .timer-section {
@@ -404,11 +627,19 @@ export default {
   border-radius: 10px;
   padding: 1rem;
   border: 2px solid rgba(255, 255, 255, 0.3);
+  transition: all 0.3s ease;
 }
 
 .timer-warning {
   border-color: #ff6b6b;
-  background: rgba(255, 107, 107, 0.2);
+  background: rgba(255, 107, 107, 0.3);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
 }
 
 .timer-label {
@@ -425,157 +656,30 @@ export default {
   font-weight: bold;
 }
 
-.loading {
+.question-header {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
   align-items: center;
-  justify-content: center;
-  min-height: 400px;
-  color: white;
-}
-
-.spinner {
-  width: 50px;
-  height: 50px;
-  border: 4px solid rgba(255, 255, 255, 0.3);
-  border-top: 4px solid white;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.quiz-completed {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 60vh;
-}
-
-.completion-card {
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 20px;
-  padding: 3rem;
-  text-align: center;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-  max-width: 500px;
-  width: 100%;
-}
-
-.completion-card h2 {
-  color: #333;
-  margin-bottom: 2rem;
-  font-size: 2rem;
-}
-
-.score-display {
-  margin-bottom: 2rem;
-}
-
-.score-display h3 {
-  color: #667eea;
-  font-size: 2.5rem;
-  margin-bottom: 0.5rem;
-}
-
-.score-display p {
-  color: #666;
-  font-size: 1.1rem;
-}
-
-.completion-actions {
-  display: flex;
-  gap: 1rem;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
-.btn-primary, .btn-secondary {
-  padding: 1rem 2rem;
-  border-radius: 25px;
-  border: none;
-  cursor: pointer;
-  font-weight: 600;
-  transition: all 0.3s ease;
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-}
-
-.btn-secondary {
-  background: rgba(255, 255, 255, 0.9);
-  color: #333;
-  border: 2px solid #667eea;
-}
-
-.btn-primary:hover, .btn-secondary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-}
-
-.quiz-content {
-  max-width: 800px;
-  margin: 0 auto;
-}
-
-.progress-bar {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 10px;
-  height: 20px;
-  margin-bottom: 2rem;
-  position: relative;
-  overflow: hidden;
-}
-
-.progress-fill {
-  background: linear-gradient(90deg, #48dbfb 0%, #0abde3 100%);
-  height: 100%;
-  transition: width 0.3s ease;
-}
-
-.progress-text {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  color: white;
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-.question-container {
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 20px;
-  padding: 2rem;
-  margin-bottom: 2rem;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-}
-
-.question-header h2 {
-  color: #333;
   margin-bottom: 1.5rem;
-  font-size: 1.5rem;
 }
 
-.question-text {
-  color: #333;
-  font-size: 1.2rem;
-  line-height: 1.6;
-  margin-bottom: 2rem;
-}
-
-.options-list {
+.question-timer {
+  background: rgba(102, 126, 234, 0.1);
+  color: #667eea;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-weight: 600;
   display: flex;
-  flex-direction: column;
-  gap: 1rem;
+  align-items: center;
+  gap: 0.5rem;
 }
 
+.progress-text .score-preview {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.85em;
+}
+
+/* Option Feedback Styles */
 .option-item {
   display: flex;
   align-items: center;
@@ -585,6 +689,7 @@ export default {
   cursor: pointer;
   transition: all 0.3s ease;
   background: white;
+  position: relative;
 }
 
 .option-item:hover {
@@ -597,25 +702,198 @@ export default {
   background: #f0f4ff;
 }
 
-.option-item input[type="radio"] {
-  margin-right: 1rem;
-  transform: scale(1.2);
+/* Feedback-specific option styles */
+.option-item.option-correct {
+  border-color: #28a745;
+  background: #d4edda;
+  color: #155724;
 }
 
-.option-text {
-  color: #333;
-  font-size: 1rem;
-  line-height: 1.4;
+.option-item.option-incorrect {
+  border-color: #dc3545;
+  background: #f8d7da;
+  color: #721c24;
 }
 
+.option-item.option-show-correct {
+  border-color: #28a745;
+  background: #d4edda;
+  color: #155724;
+  animation: highlight 2s ease-in-out;
+}
+
+@keyframes highlight {
+  0% { background: #d4edda; }
+  50% { background: #b4d6bb; }
+  100% { background: #d4edda; }
+}
+
+.feedback-icon {
+  position: absolute;
+  right: 1rem;
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+.feedback-icon.correct {
+  color: #28a745;
+}
+
+.feedback-icon.incorrect {
+  color: #dc3545;
+}
+
+.feedback-icon.show-correct {
+  color: #28a745;
+}
+
+/* Feedback Panel */
+.feedback-panel {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  border-radius: 10px;
+  border-left: 4px solid;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.feedback-panel.correct {
+  background: #d4edda;
+  border-left-color: #28a745;
+  color: #155724;
+}
+
+.feedback-panel.incorrect {
+  background: #f8d7da;
+  border-left-color: #dc3545;
+  color: #721c24;
+}
+
+.feedback-panel.timeout {
+  background: #fff3cd;
+  border-left-color: #ffc107;
+  color: #856404;
+}
+
+.feedback-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.feedback-explanation {
+  font-style: italic;
+  opacity: 0.9;
+}
+
+/* Navigation Styles */
 .navigation-buttons {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 1.5rem;
   align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
 }
 
+.question-indicators {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.auto-progress-info {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 1rem;
+  text-align: center;
+}
+
+.auto-progress-info p {
+  color: white;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.manual-navigation {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+/* Enhanced Question Indicators */
+.indicator-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.indicator-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.indicator-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.indicator-btn.answered {
+  background: #48dbfb;
+  border-color: #48dbfb;
+}
+
+.indicator-btn.current {
+  background: #667eea;
+  border-color: #667eea;
+  transform: scale(1.1);
+}
+
+.indicator-btn.correct {
+  background: #28a745;
+  border-color: #28a745;
+}
+
+.indicator-btn.incorrect {
+  background: #dc3545;
+  border-color: #dc3545;
+}
+
+.indicator-icon {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  background: white;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+}
+
+/* Button Styles */
 .btn-nav, .btn-submit {
   padding: 0.75rem 1.5rem;
   border-radius: 25px;
@@ -656,95 +934,39 @@ export default {
   cursor: not-allowed;
 }
 
-.question-indicators {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-  justify-content: center;
+/* Completion Card Enhancements */
+.completion-card {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 20px;
+  padding: 3rem;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+  max-width: 500px;
+  width: 100%;
 }
 
-.indicator-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-  cursor: pointer;
-  font-weight: 600;
-  transition: all 0.3s ease;
-}
-
-.indicator-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
-}
-
-.indicator-btn.answered {
-  background: #48dbfb;
-  border-color: #48dbfb;
-}
-
-.indicator-btn.current {
-  background: #667eea;
-  border-color: #667eea;
-}
-
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: white;
-  border-radius: 15px;
-  padding: 2rem;
-  max-width: 400px;
-  width: 90%;
-}
-
-.modal-header h3 {
+.completion-card h2 {
   color: #333;
-  margin-bottom: 1rem;
+  margin-bottom: 2rem;
+  font-size: 2rem;
 }
 
-.modal-body p {
+.score-display {
+  margin-bottom: 2rem;
+}
+
+.score-display h3 {
+  color: #667eea;
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.score-display p {
   color: #666;
-  margin: 0.5rem 0;
+  font-size: 1.1rem;
 }
 
-.modal-actions {
-  display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
-  margin-top: 2rem;
-}
-
-.btn-cancel, .btn-confirm {
-  padding: 0.75rem 1.5rem;
-  border-radius: 25px;
-  border: none;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.btn-cancel {
-  background: #f8f9fa;
-  color: #666;
-}
-
-.btn-confirm {
-  background: #ff6b6b;
-  color: white;
-}
-
+/* Responsive Design */
 @media (max-width: 768px) {
   .quiz-taking {
     padding: 1rem;
@@ -753,6 +975,40 @@ export default {
   .quiz-header {
     flex-direction: column;
     gap: 1rem;
+    text-align: center;
+  }
+  
+  .question-header {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: stretch;
+    text-align: center;
+  }
+  
+  .navigation-buttons {
+    gap: 1rem;
+  }
+  
+  .manual-navigation {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .feedback-panel {
+    margin-top: 1rem;
+    padding: 0.75rem;
+  }
+}
+  .quiz-header {
+    flex-direction: column;
+    gap: 1rem;
+    text-align: center;
+  }
+  
+  .question-header {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: stretch;
     text-align: center;
   }
   
@@ -765,8 +1021,9 @@ export default {
     order: -1;
   }
   
-  .completion-actions {
-    flex-direction: column;
+  .feedback-panel {
+    margin-top: 1rem;
+    padding: 0.75rem;
   }
-}
+
 </style> 

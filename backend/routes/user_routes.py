@@ -83,6 +83,62 @@ def get_profile():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
+@user_bp.route('/question/<int:question_id>/check', methods=['POST'])
+@jwt_required()
+def check_answer_instantly(question_id):
+    """Check if the selected answer is correct and provide instant feedback"""
+    try:
+        print(f"Question ID: {question_id}")
+        
+        data = request.get_json()
+        selected_option = data.get('selected_option')  # 0-based index
+        
+        print(f"Selected option (0-based): {selected_option}")
+        
+        user_name = get_jwt_identity()
+        user = User.query.filter_by(user_name=user_name).first()
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        # Get the question
+        question = Question.query.get(question_id)
+        if not question:
+            return jsonify({'error': 'Question not found'}), 404
+            
+        print(f"Question: {question.question_statement}")
+        print(f"Correct option: {question.correct_option}")
+        
+        # Convert selected option from 0-based to 1-based for comparison
+        selected_option_1based = selected_option + 1 if selected_option is not None else None
+        
+        # Check if answer is correct
+        is_correct = selected_option_1based == question.correct_option
+        
+        print(f"Selected (1-based): {selected_option_1based}")
+        print(f"Is correct: {is_correct}")
+        
+        # Prepare response
+        response_data = {
+            'is_correct': is_correct,
+            'correct_option': question.correct_option,
+            'selected_option': selected_option_1based,
+            'question_id': question_id
+        }
+        
+        # Add explanation if available (you can extend your Question model to include explanations)
+        if hasattr(question, 'explanation') and question.explanation:
+            response_data['explanation'] = question.explanation
+        
+        print(f"Response: {response_data}")
+        return jsonify(response_data), 200
+        
+    except Exception as e:
+        print(f"EXCEPTION in check_answer_instantly: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 @user_bp.route('/subjects/<int:subject_id>/quizzes', methods=['GET'])
 @jwt_required()
 def get_quizzes_by_subject(subject_id):
@@ -218,22 +274,30 @@ def start_quiz(quiz_id):
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+    
 
 @user_bp.route('/quiz/<int:quiz_id>/submit', methods=['POST'])
 @jwt_required()
 def submit_quiz(quiz_id):
-    """Submit quiz answers and calculate score"""
+    """Submit quiz answers and calculate score with enhanced time tracking"""
     try:
+        print(f"Quiz ID: {quiz_id}")
+        
         data = request.get_json()
         user_answers = data.get('answers', {})  # format: {question_id: selected_option_index}
         time_taken = data.get('time_taken', 0)  # time in seconds
+        
+        print(f"Answers received: {user_answers}")
+        print(f"Time taken: {time_taken} seconds")
 
         user_name = get_jwt_identity()
         user = User.query.filter_by(user_name=user_name).first()
         if not user:
             return jsonify({'error': 'User not found'}), 404
 
-        quiz = Quiz.query.get_or_404(quiz_id)
+        quiz = Quiz.query.get(quiz_id)
+        if not quiz:
+            return jsonify({'error': 'Quiz not found'}), 404
         
         # Check if user has already attempted this quiz
         existing_score = Score.query.filter_by(
@@ -260,6 +324,8 @@ def submit_quiz(quiz_id):
             
             # Check if answer is correct
             is_correct = False
+            user_option = None
+            
             if user_answer_index is not None:
                 # Convert 0-based index to 1-based option number
                 user_option = user_answer_index + 1
@@ -271,8 +337,11 @@ def submit_quiz(quiz_id):
                 'question_id': question.question_id,
                 'question_text': question.question_statement,
                 'correct_option': question.correct_option,
-                'user_answer': user_answer_index + 1 if user_answer_index is not None else None,
-                'is_correct': is_correct
+                'user_answer': user_option,
+                'is_correct': is_correct,
+                'options': [question.option1, question.option2, 
+                           question.option3 if question.option3 else None,
+                           question.option4 if question.option4 else None]
             })
 
         # Calculate percentage score
@@ -291,6 +360,8 @@ def submit_quiz(quiz_id):
         db.session.add(score_entry)
         db.session.commit()
 
+        print(f"Quiz submitted successfully: {correct_answers}/{total_questions} = {percentage_score}%")
+
         return jsonify({
             'message': 'Quiz submitted successfully',
             'score': {
@@ -304,6 +375,9 @@ def submit_quiz(quiz_id):
         
     except Exception as e:
         db.session.rollback()
+        print(f"EXCEPTION in submit_quiz: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @user_bp.route('/scores', methods=['GET'])
@@ -386,6 +460,86 @@ def get_quiz_summary(quiz_id):
         }), 200
         
     except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    
+@user_bp.route('/quiz/<int:quiz_id>/results', methods=['GET'])
+@jwt_required()
+def get_quiz_results(quiz_id):
+    """Get detailed results for a completed quiz attempt"""
+    try:
+        print(f"=== QUIZ RESULTS ENDPOINT HIT ===")
+        print(f"Quiz ID: {quiz_id}")
+        
+        user_name = get_jwt_identity()
+        user = User.query.filter_by(user_name=user_name).first()
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        # Get user's most recent score for this quiz
+        score = Score.query.filter_by(
+            quiz_id=quiz_id, 
+            user_id=user.user_id
+        ).order_by(Score.attempt_datetime.desc()).first()
+
+        if not score:
+            return jsonify({'error': 'No quiz attempt found'}), 404
+
+        # Get quiz details
+        quiz = Quiz.query.get(quiz_id)
+        if not quiz:
+            return jsonify({'error': 'Quiz not found'}), 404
+
+        # Get all questions for this quiz with correct answers
+        questions = Question.query.filter_by(quiz_id=quiz_id).all()
+        
+        question_results = []
+        for question in questions:
+            # Get all options
+            options = [question.option1, question.option2]
+            if question.option3:
+                options.append(question.option3)
+            if question.option4:
+                options.append(question.option4)
+            
+            question_results.append({
+                'question_id': question.question_id,
+                'question_statement': question.question_statement,
+                'options': options,
+                'correct_option': question.correct_option,
+                'correct_answer_text': options[question.correct_option - 1] if question.correct_option <= len(options) else None
+            })
+
+        # Get chapter and subject info
+        chapter = quiz.chapter
+        subject = chapter.subject if chapter else None
+
+        result_data = {
+            'quiz_info': {
+                'quiz_id': quiz.quiz_id,
+                'title': quiz.title,
+                'chapter_name': chapter.name if chapter else 'Unknown',
+                'subject_name': subject.name if subject else 'Unknown',
+                'date_of_quiz': quiz.date_of_quiz.isoformat() if quiz.date_of_quiz else None,
+                'time_duration': quiz.time_duration,
+                'remarks': quiz.remarks
+            },
+            'score_info': {
+                'total_questions': score.total_questions,
+                'correct_answers': score.correct_answers,
+                'total_score': score.total_score,
+                'time_taken': score.time_taken,
+                'attempted_on': score.attempt_datetime.isoformat()
+            },
+            'questions': question_results
+        }
+
+        print(f"SUCCESS: Returning results for quiz {quiz_id}")
+        return jsonify(result_data), 200
+        
+    except Exception as e:
+        print(f"EXCEPTION in get_quiz_results: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @user_bp.route('/score-summary', methods=['GET'])
