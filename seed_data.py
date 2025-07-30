@@ -62,25 +62,43 @@ def seed_data():
         # Create quizzes
         now = datetime.utcnow()
         quizzes = [
-            # Mathematics quizzes
-            Quiz(title="Algebra Basics", chapter_id=1, date_of_quiz=now + timedelta(days=1), time_duration=30, remarks="Basic algebraic concepts"),
-            Quiz(title="Calculus Fundamentals", chapter_id=2, date_of_quiz=now + timedelta(days=2), time_duration=45, remarks="Introduction to calculus"),
-            Quiz(title="Statistics Quiz", chapter_id=3, date_of_quiz=now + timedelta(days=3), time_duration=40, remarks="Probability and statistics"),
+            # Mathematics quizzes (Scheduled)
+            Quiz(title="Algebra Basics", chapter_id=1, date_of_quiz=now + timedelta(days=1), time_duration=30, remarks="Basic algebraic concepts", is_anytime_quiz=False),
+            Quiz(title="Calculus Fundamentals", chapter_id=2, date_of_quiz=now + timedelta(days=2), time_duration=45, remarks="Introduction to calculus", is_anytime_quiz=False),
+            Quiz(title="Statistics Quiz", chapter_id=3, date_of_quiz=now + timedelta(days=3), time_duration=40, remarks="Probability and statistics", is_anytime_quiz=False),
             
-            # Physics quizzes
-            Quiz(title="Mechanics Test", chapter_id=4, date_of_quiz=now + timedelta(days=1), time_duration=35, remarks="Newton's laws and energy"),
-            Quiz(title="Thermodynamics Quiz", chapter_id=5, date_of_quiz=now + timedelta(days=2), time_duration=30, remarks="Heat and energy transfer"),
-            Quiz(title="Electromagnetism", chapter_id=6, date_of_quiz=now + timedelta(days=3), time_duration=50, remarks="Electric and magnetic fields"),
+            # Mathematics quizzes (Anytime)
+            Quiz(title="Algebra Practice", chapter_id=1, date_of_quiz=now, time_duration=20, remarks="Practice algebra anytime", is_anytime_quiz=True),
+            Quiz(title="Calculus Practice", chapter_id=2, date_of_quiz=now, time_duration=25, remarks="Practice calculus concepts", is_anytime_quiz=True),
+            Quiz(title="Statistics Practice", chapter_id=3, date_of_quiz=now, time_duration=30, remarks="Practice statistics anytime", is_anytime_quiz=True),
             
-            # Computer Science quizzes
-            Quiz(title="Programming Basics", chapter_id=7, date_of_quiz=now + timedelta(days=1), time_duration=25, remarks="Variables and control structures"),
-            Quiz(title="Data Structures", chapter_id=8, date_of_quiz=now + timedelta(days=2), time_duration=40, remarks="Arrays and linked lists"),
-            Quiz(title="Algorithm Analysis", chapter_id=9, date_of_quiz=now + timedelta(days=3), time_duration=45, remarks="Complexity and optimization"),
+            # Physics quizzes (Scheduled)
+            Quiz(title="Mechanics Test", chapter_id=4, date_of_quiz=now + timedelta(days=1), time_duration=35, remarks="Newton's laws and energy", is_anytime_quiz=False),
+            Quiz(title="Thermodynamics Quiz", chapter_id=5, date_of_quiz=now + timedelta(days=2), time_duration=30, remarks="Heat and energy transfer", is_anytime_quiz=False),
+            Quiz(title="Electromagnetism", chapter_id=6, date_of_quiz=now + timedelta(days=3), time_duration=50, remarks="Electric and magnetic fields", is_anytime_quiz=False),
             
-            # English Literature quizzes
-            Quiz(title="Shakespeare's Works", chapter_id=10, date_of_quiz=now + timedelta(days=1), time_duration=30, remarks="Famous plays and sonnets"),
-            Quiz(title="Modern Literature", chapter_id=11, date_of_quiz=now + timedelta(days=2), time_duration=35, remarks="20th century literature"),
-            Quiz(title="Poetry Analysis", chapter_id=12, date_of_quiz=now + timedelta(days=3), time_duration=30, remarks="Poetic devices and themes")
+            # Physics quizzes (Anytime)
+            Quiz(title="Mechanics Practice", chapter_id=4, date_of_quiz=now, time_duration=20, remarks="Practice mechanics anytime", is_anytime_quiz=True),
+            Quiz(title="Physics Fundamentals", chapter_id=5, date_of_quiz=now, time_duration=25, remarks="Basic physics concepts", is_anytime_quiz=True),
+            
+            # Computer Science quizzes (Scheduled)
+            Quiz(title="Programming Basics", chapter_id=7, date_of_quiz=now + timedelta(days=1), time_duration=25, remarks="Variables and control structures", is_anytime_quiz=False),
+            Quiz(title="Data Structures", chapter_id=8, date_of_quiz=now + timedelta(days=2), time_duration=40, remarks="Arrays and linked lists", is_anytime_quiz=False),
+            Quiz(title="Algorithm Analysis", chapter_id=9, date_of_quiz=now + timedelta(days=3), time_duration=45, remarks="Complexity and optimization", is_anytime_quiz=False),
+            
+            # Computer Science quizzes (Anytime)
+            Quiz(title="Programming Practice", chapter_id=7, date_of_quiz=now, time_duration=15, remarks="Practice programming anytime", is_anytime_quiz=True),
+            Quiz(title="Coding Fundamentals", chapter_id=8, date_of_quiz=now, time_duration=20, remarks="Basic coding concepts", is_anytime_quiz=True),
+            Quiz(title="Algorithm Practice", chapter_id=9, date_of_quiz=now, time_duration=30, remarks="Practice algorithms anytime", is_anytime_quiz=True),
+            
+            # English Literature quizzes (Scheduled)
+            Quiz(title="Shakespeare's Works", chapter_id=10, date_of_quiz=now + timedelta(days=1), time_duration=30, remarks="Famous plays and sonnets", is_anytime_quiz=False),
+            Quiz(title="Modern Literature", chapter_id=11, date_of_quiz=now + timedelta(days=2), time_duration=35, remarks="20th century literature", is_anytime_quiz=False),
+            Quiz(title="Poetry Analysis", chapter_id=12, date_of_quiz=now + timedelta(days=3), time_duration=30, remarks="Poetic devices and themes", is_anytime_quiz=False),
+            
+            # English Literature quizzes (Anytime)
+            Quiz(title="Literature Practice", chapter_id=10, date_of_quiz=now, time_duration=20, remarks="Practice literature anytime", is_anytime_quiz=True),
+            Quiz(title="Poetry Practice", chapter_id=12, date_of_quiz=now, time_duration=15, remarks="Practice poetry analysis", is_anytime_quiz=True)
         ]
         
         for quiz in quizzes:
@@ -129,7 +147,59 @@ def seed_data():
             (10, "What is the famous quote from Hamlet?", ["'To be or not to be'", "'Romeo, Romeo'", "'Macbeth'", "'Othello'"], 1),
             (10, "What is a sonnet?", ["14-line poem", "10-line poem", "20-line poem", "Free verse"], 1),
             (10, "What is the setting of 'Macbeth'?", ["Scotland", "England", "France", "Italy"], 1),
-            (10, "What is the main theme of 'Romeo and Juliet'?", ["Love and fate", "War and peace", "Power and corruption", "Revenge"], 1)
+            (10, "What is the main theme of 'Romeo and Juliet'?", ["Love and fate", "War and peace", "Power and corruption", "Revenge"], 1),
+            
+            # Anytime Practice Quiz Questions
+            
+            # Algebra Practice questions
+            (13, "What is the solution to x + 3 = 8?", ["x = 5", "x = 11", "x = 3", "x = 8"], 1),
+            (13, "Simplify: 2(x + 1) + 3", ["2x + 5", "2x + 3", "2x + 1", "2x + 2"], 1),
+            (13, "What is the slope of y = 3x + 2?", ["3", "2", "1", "0"], 1),
+            
+            # Calculus Practice questions
+            (14, "What is the derivative of 3x²?", ["6x", "3x", "6x²", "3x²"], 1),
+            (14, "What is the integral of 3x?", ["1.5x² + C", "3x² + C", "x² + C", "3x + C"], 1),
+            (14, "What is the limit of x as x approaches 5?", ["5", "0", "1", "∞"], 1),
+            
+            # Statistics Practice questions
+            (15, "What is the mean of [2, 4, 6, 8]?", ["5", "4", "6", "3"], 1),
+            (15, "What is the median of [1, 2, 3, 4, 5]?", ["3", "2", "4", "5"], 1),
+            (15, "What is the mode of [1, 1, 2, 3, 3]?", ["1 and 3", "1", "2", "3"], 1),
+            
+            # Mechanics Practice questions
+            (18, "What is Newton's Second Law?", ["F = ma", "F = mg", "F = mv", "F = mgh"], 1),
+            (18, "What is the unit of energy?", ["Joule", "Newton", "Watt", "Pascal"], 1),
+            (18, "What is the formula for potential energy?", ["mgh", "½mv²", "ma", "mv"], 1),
+            
+            # Physics Fundamentals questions
+            (19, "What is the SI unit of mass?", ["Kilogram", "Newton", "Meter", "Second"], 1),
+            (19, "What is the SI unit of length?", ["Meter", "Centimeter", "Kilometer", "Inch"], 1),
+            (19, "What is the SI unit of time?", ["Second", "Minute", "Hour", "Day"], 1),
+            
+            # Programming Practice questions
+            (22, "What is a loop used for?", ["Repeating code", "Storing data", "Defining functions", "Handling errors"], 1),
+            (22, "What is a variable?", ["Container for data", "Function", "Loop", "Condition"], 1),
+            (22, "What is debugging?", ["Finding errors", "Writing code", "Running programs", "Documenting"], 1),
+            
+            # Coding Fundamentals questions
+            (23, "What is an array?", ["Collection of elements", "Single value", "Function", "Loop"], 1),
+            (23, "What is a function?", ["Reusable code block", "Data type", "Variable", "Operator"], 1),
+            (23, "What is a string?", ["Text data", "Number data", "Boolean data", "Array data"], 1),
+            
+            # Algorithm Practice questions
+            (24, "What is time complexity?", ["Algorithm efficiency", "Code length", "Memory usage", "Program speed"], 1),
+            (24, "What is Big O notation?", ["Complexity measure", "Code style", "Data structure", "Programming language"], 1),
+            (24, "What is a sorting algorithm?", ["Arranging data", "Searching data", "Storing data", "Deleting data"], 1),
+            
+            # Literature Practice questions
+            (25, "What is a metaphor?", ["Comparison without 'like' or 'as'", "Direct comparison", "Sound device", "Rhyme scheme"], 1),
+            (25, "What is a simile?", ["Comparison using 'like' or 'as'", "Direct comparison", "Sound device", "Rhyme scheme"], 1),
+            (25, "What is alliteration?", ["Repetition of sounds", "Repetition of words", "Rhyme scheme", "Meter pattern"], 1),
+            
+            # Poetry Practice questions
+            (26, "What is a stanza?", ["Group of lines", "Single line", "Rhyme scheme", "Meter pattern"], 1),
+            (26, "What is a rhyme scheme?", ["Pattern of rhymes", "Number of lines", "Meter pattern", "Poem length"], 1),
+            (26, "What is free verse?", ["No regular meter or rhyme", "Regular meter", "Regular rhyme", "Fixed form"], 1)
         ]
         
         for quiz_id, statement, options, correct in questions_data:
@@ -148,8 +218,9 @@ def seed_data():
         print("✅ Sample data seeded successfully!")
         print(f"📚 Created {len(subjects)} subjects")
         print(f"📖 Created {len(chapters)} chapters")
-        print(f"📝 Created {len(quizzes)} quizzes")
+        print(f"📝 Created {len(quizzes)} quizzes (including anytime quizzes)")
         print(f"❓ Created {len(questions_data)} questions")
+        print("🎯 Anytime quizzes available for immediate testing!")
 
 if __name__ == "__main__":
     seed_data() 
