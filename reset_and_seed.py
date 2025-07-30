@@ -161,54 +161,54 @@ def reset_and_seed():
             # Anytime Practice Quiz Questions
             
             # Algebra Practice questions
-            (13, "What is the solution to x + 3 = 8?", ["x = 5", "x = 11", "x = 3", "x = 8"], 1),
-            (13, "Simplify: 2(x + 1) + 3", ["2x + 5", "2x + 3", "2x + 1", "2x + 2"], 1),
-            (13, "What is the slope of y = 3x + 2?", ["3", "2", "1", "0"], 1),
+            (4, "What is the solution to x + 3 = 8?", ["x = 5", "x = 11", "x = 3", "x = 8"], 1),
+            (4, "Simplify: 2(x + 1) + 3", ["2x + 5", "2x + 3", "2x + 1", "2x + 2"], 1),
+            (4, "What is the slope of y = 3x + 2?", ["3", "2", "1", "0"], 1),
             
             # Calculus Practice questions
-            (14, "What is the derivative of 3x²?", ["6x", "3x", "6x²", "3x²"], 1),
-            (14, "What is the integral of 3x²?", ["x³ + C", "3x³ + C", "x² + C", "3x² + C"], 1),
-            (14, "What is the limit of 1/x as x approaches ∞?", ["0", "1", "∞", "-∞"], 1),
+            (5, "What is the derivative of 3x²?", ["6x", "3x", "6x²", "3x²"], 1),
+            (5, "What is the integral of 3x²?", ["x³ + C", "3x³ + C", "x² + C", "3x² + C"], 1),
+            (5, "What is the limit of 1/x as x approaches ∞?", ["0", "1", "∞", "-∞"], 1),
             
             # Statistics Practice questions
-            (15, "What is the mean of [2, 4, 6, 8, 10]?", ["6", "5", "7", "4"], 1),
-            (15, "What is the median of [1, 2, 3, 4, 5, 6]?", ["3.5", "3", "4", "2.5"], 1),
-            (15, "What is the mode of [1, 1, 2, 3, 3, 3]?", ["3", "1", "2", "No mode"], 1),
+            (6, "What is the mean of [2, 4, 6, 8, 10]?", ["6", "5", "7", "4"], 1),
+            (6, "What is the median of [1, 2, 3, 4, 5, 6]?", ["3.5", "3", "4", "2.5"], 1),
+            (6, "What is the mode of [1, 1, 2, 3, 3, 3]?", ["3", "1", "2", "No mode"], 1),
             
             # Mechanics Practice questions
-            (16, "What is Newton's Second Law?", ["F = ma", "F = mg", "F = mv", "F = mgh"], 1),
-            (16, "What is the unit of energy?", ["Joule", "Newton", "Watt", "Pascal"], 1),
-            (16, "What is the formula for potential energy?", ["mgh", "½mv²", "ma", "mv"], 1),
+            (10, "What is Newton's Second Law?", ["F = ma", "F = mg", "F = mv", "F = mgh"], 1),
+            (10, "What is the unit of energy?", ["Joule", "Newton", "Watt", "Pascal"], 1),
+            (10, "What is the formula for potential energy?", ["mgh", "½mv²", "ma", "mv"], 1),
             
             # Physics Fundamentals questions
-            (17, "What is the SI unit of mass?", ["Kilogram", "Newton", "Meter", "Second"], 1),
-            (17, "What is the SI unit of length?", ["Meter", "Centimeter", "Kilometer", "Inch"], 1),
-            (17, "What is the SI unit of time?", ["Second", "Minute", "Hour", "Day"], 1),
+            (11, "What is the SI unit of mass?", ["Kilogram", "Newton", "Meter", "Second"], 1),
+            (11, "What is the SI unit of length?", ["Meter", "Centimeter", "Kilometer", "Inch"], 1),
+            (11, "What is the SI unit of time?", ["Second", "Minute", "Hour", "Day"], 1),
             
             # Programming Practice questions
-            (18, "What is a loop used for?", ["Repeating code", "Storing data", "Defining functions", "Handling errors"], 1),
-            (18, "What is a variable?", ["Container for data", "Function", "Loop", "Condition"], 1),
-            (18, "What is debugging?", ["Finding errors", "Writing code", "Running programs", "Documenting"], 1),
+            (15, "What is a loop used for?", ["Repeating code", "Storing data", "Defining functions", "Handling errors"], 1),
+            (15, "What is a variable?", ["Container for data", "Function", "Loop", "Condition"], 1),
+            (15, "What is debugging?", ["Finding errors", "Writing code", "Running programs", "Documenting"], 1),
             
             # Coding Fundamentals questions
-            (19, "What is an array?", ["Collection of elements", "Single value", "Function", "Loop"], 1),
-            (19, "What is a function?", ["Reusable code block", "Data type", "Variable", "Operator"], 1),
-            (19, "What is a string?", ["Text data", "Number data", "Boolean data", "Array data"], 1),
+            (16, "What is an array?", ["Collection of elements", "Single value", "Function", "Loop"], 1),
+            (16, "What is a function?", ["Reusable code block", "Data type", "Variable", "Operator"], 1),
+            (16, "What is a string?", ["Text data", "Number data", "Boolean data", "Array data"], 1),
             
             # Algorithm Practice questions
-            (20, "What is time complexity?", ["Algorithm efficiency", "Code length", "Memory usage", "Program speed"], 1),
-            (20, "What is Big O notation?", ["Complexity measure", "Code style", "Data structure", "Programming language"], 1),
-            (20, "What is a sorting algorithm?", ["Arranging data", "Searching data", "Storing data", "Deleting data"], 1),
+            (17, "What is time complexity?", ["Algorithm efficiency", "Code length", "Memory usage", "Program speed"], 1),
+            (17, "What is Big O notation?", ["Complexity measure", "Code style", "Data structure", "Programming language"], 1),
+            (17, "What is a sorting algorithm?", ["Arranging data", "Searching data", "Storing data", "Deleting data"], 1),
             
             # Literature Practice questions
-            (19, "What is a metaphor?", ["Comparison without 'like' or 'as'", "Direct comparison", "Sound device", "Rhyme scheme"], 1),
-            (19, "What is a simile?", ["Comparison using 'like' or 'as'", "Direct comparison", "Sound device", "Rhyme scheme"], 1),
-            (19, "What is alliteration?", ["Repetition of sounds", "Repetition of words", "Rhyme scheme", "Meter pattern"], 1),
+            (21, "What is a metaphor?", ["Comparison without 'like' or 'as'", "Direct comparison", "Sound device", "Rhyme scheme"], 1),
+            (21, "What is a simile?", ["Comparison using 'like' or 'as'", "Direct comparison", "Sound device", "Rhyme scheme"], 1),
+            (21, "What is alliteration?", ["Repetition of sounds", "Repetition of words", "Rhyme scheme", "Meter pattern"], 1),
             
             # Poetry Practice questions
-            (20, "What is a stanza?", ["Group of lines", "Single line", "Rhyme scheme", "Meter pattern"], 1),
-            (20, "What is a rhyme scheme?", ["Pattern of rhymes", "Number of lines", "Meter pattern", "Poem length"], 1),
-            (20, "What is free verse?", ["No regular meter or rhyme", "Regular meter", "Regular rhyme", "Fixed form"], 1)
+            (22, "What is a stanza?", ["Group of lines", "Single line", "Rhyme scheme", "Meter pattern"], 1),
+            (22, "What is a rhyme scheme?", ["Pattern of rhymes", "Number of lines", "Meter pattern", "Poem length"], 1),
+            (22, "What is free verse?", ["No regular meter or rhyme", "Regular meter", "Regular rhyme", "Fixed form"], 1)
         ]
         
         for quiz_id, statement, options, correct_option in questions_data:
