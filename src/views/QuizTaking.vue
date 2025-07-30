@@ -258,9 +258,9 @@ export default {
       autoExpireEnabled: false,
       
       // Quiz progress and feedback
-      progressPercentage: 0,
       showInstantFeedback: false,
       currentQuestionFeedback: null,
+      questionFeedback: null,
       
       // Submission state
       submitting: false,
@@ -629,20 +629,20 @@ export default {
     },
 
     showConfirmModal() {
-      this.showConfirmModal = true
+      this.$set(this, 'showConfirmModal', true)
     },
 
     closeConfirmModal() {
-      this.showConfirmModal = false
+      this.$set(this, 'showConfirmModal', false)
     },
 
     confirmSubmit() {
-      this.showConfirmModal = false
+      this.$set(this, 'showConfirmModal', false)
       this.submitAnswers()
     },
 
     getOptionClass(index) {
-      if (!this.currentQuestionFeedback) return ''
+      if (!this.currentQuestionFeedback || !this.currentQuestion) return ''
       
       const userAnswer = this.selectedAnswers[this.currentQuestion.id]
       const correctOption = 1 // Assuming correct_option is 1
